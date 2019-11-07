@@ -10,8 +10,9 @@ jobs:
 workflows:
   version: 2
   build:
-    - release:
-        context: Github
-        filters:
-          tags:
-            only: /.*/
+    jobs:
+      - release:
+          context: Github
+          filters:
+            tags:
+              only: /.*/
