@@ -1,0 +1,17 @@
+version: 2
+jobs:
+  release:
+    working_directory: /go/src/github.com/moshloop/platform-operator
+    steps:
+      - checkout
+      - setup_remote_docker
+      - make release
+
+workflows:
+  version: 2
+  build:
+    - release:
+        context: Github
+        filters:
+          tags:
+            only: /.*/
