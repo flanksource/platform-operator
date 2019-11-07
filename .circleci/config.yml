@@ -7,7 +7,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
-      - make release
+      - sh: make release
 
 workflows:
   version: 2
