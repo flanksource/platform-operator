@@ -6,19 +6,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/moshloop/platform-operator/pkg/k8s"
+	"k8s.io/client-go/kubernetes"
 )
 
-func CleanupOperator(client k8s.Client, watchDuration time.Duration) {
-
+func CleanupOperator(clientset kubernetes.Interface, watchDuration time.Duration) {
+	log.Infof("Checking namespaces labelled with auto-delete every %s", watchDuration)
 	for {
-		clientset, err := client.GetClientset()
-
-		if err != nil {
-			log.Errorf("Failed to get kubecluent %v", err)
-		}
-
 		list, err := clientset.CoreV1().Namespaces().List(metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Failed to list namespaces %v", err)

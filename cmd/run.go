@@ -17,15 +17,16 @@ var Run = &cobra.Command{
 	Short: "Run all controllers",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		client := k8s.GetDefaultClient()
-
 		watchDuration, err := time.ParseDuration(watchInterval)
 		if err != nil {
 			log.Fatalf("Invalid duration: %s", watchInterval)
 		}
 
+		client, err := k8s.GetClientSet()
+		if err != nil {
+			log.Fatalf("Cannot get k8s client: %v", err)
+		}
 		controllers.CleanupOperator(client, watchDuration)
-		log.Infof("Done")
 	},
 }
 
