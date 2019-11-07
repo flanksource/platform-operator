@@ -5,6 +5,6 @@ ADD . /src
 RUN cd /src && go build -o platform-operator
 
 # final stage
-FROM alpine
+FROM ubuntu:bionic
 COPY --from=build-env /src/platform-operator /
 ENTRYPOINT /platform-operator serve
