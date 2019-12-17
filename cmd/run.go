@@ -6,8 +6,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/moshloop/platform-operator/pkg/controllers"
-	"github.com/moshloop/platform-operator/pkg/k8s"
+	"github.com/flanksource/platform-operator/pkg/controllers"
+	"github.com/flanksource/platform-operator/pkg/k8s"
 )
 
 var watchInterval string

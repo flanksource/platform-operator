@@ -37,6 +37,6 @@ spec:
       serviceAccountName: platform-operator
       containers:
         - name: platform-operator
-          image: docker.io/moshloop/platform-operator:0.1
+          image: docker.io/flanksource/platform-operator:0.1
           command:
             - /platform-operator serve -watch-interval 5m

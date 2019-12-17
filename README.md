@@ -5,7 +5,7 @@ Platform Operator is a kubernetes operator designed to be run in a multi-tenante
 1. Installing
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/moshloop/platform-operator/master/deploy/platform-operator.yaml
+kubectl apply -f https://raw.githubusercontent.com/flanksource/platform-operator/master/deploy/platform-operator.yaml
 ```
 
 ### Auto-Delete

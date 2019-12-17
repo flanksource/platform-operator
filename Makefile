@@ -1,6 +1,6 @@
 
 tag := $(shell git tag --points-at HEAD )
-name := "moshloop/platform-operator"
+name := "flanksource/platform-operator"
 
 ifdef tag
 else

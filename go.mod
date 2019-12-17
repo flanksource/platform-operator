@@ -1,4 +1,4 @@
-module github.com/moshloop/platform-operator
+module github.com/flanksource/platform-operator
 
 go 1.12
 

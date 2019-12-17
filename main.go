@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"github.com/moshloop/platform-operator/cmd"
+	"github.com/flanksource/platform-operator/cmd"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
