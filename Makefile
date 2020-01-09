@@ -63,7 +63,8 @@ docker-build: test
 
 # Login to docker registry
 docker-login:
-	echo $(DOCKER_PASS) | docker login -u $(DOCKER_USER) --password-stdin
+	@ echo $(DOCKER_USER)
+	docker login -u $(DOCKER_USER) -p $(DOCKER_PASS)
 
 # Push the docker image
 docker-push:
