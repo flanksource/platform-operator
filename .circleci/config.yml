@@ -3,11 +3,13 @@ jobs:
   release:
     docker:
       - image: circleci/golang:1.12
-    working_directory: /go/src/github.com/moshloop/platform-operator
+        environment:
+          GO111MODULE: "on"
+    working_directory: /go/src/github.com/flanksource/platform-operator
     steps:
       - checkout
       - setup_remote_docker
-      - run: make release
+      - run: make ci-release IMG=flanksource/platform-operator TAG=$(date +%Y%m%d%M%H%M%S)
 
 workflows:
   version: 2

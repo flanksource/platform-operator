@@ -1,0 +1,3 @@
+domain: platform.k8s.flanksource.com
+repo: github.com/flanksource/platform-operator
+version: "2"
