@@ -22,94 +22,122 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"k8s.io/apimachinery/pkg/labels"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var log = logf.Log.WithName("cleanup-controller")
+var (
+	name = "cleanup-controller"
 
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	// this is the label used for the lookup of the ns to clean-up (i.e auto-delete=24h)
+	cleanupLabel = "auto-delete"
+)
+
+var log = logf.Log.WithName(name)
+
+func Add(mgr manager.Manager, interval time.Duration) error {
+	return add(mgr, newReconciler(mgr, interval))
 }
 
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileCleanup{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager, interval time.Duration) reconcile.Reconciler {
+	return &ReconcileCleanup{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+
+		interval: interval,
+	}
 }
 
 func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	c, err := controller.New("cleanup-controller", mgr, controller.Options{Reconciler: r})
+	c, err := controller.New(name, mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
 
-	c.Watch(&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
+	isAutoDeleteLabelSet := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			ns, ok := e.Object.(*corev1.Namespace)
+			if !ok {
+				return false
+			}
+
+			_, found := ns.GetLabels()[cleanupLabel]
+			return found
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			newNs, ok := e.ObjectNew.(*corev1.Namespace)
+			if !ok {
+				return false
+			}
+
+			_, found := newNs.GetLabels()[cleanupLabel]
+			return found
+		},
+	}
+
+	if err := c.Watch(
+		&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{},
+		isAutoDeleteLabelSet,
+	); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+var _ reconcile.Reconciler = &ReconcileCleanup{}
+
 type ReconcileCleanup struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// interval is the time after which the controller requeue the reconcile key
+	interval time.Duration
 }
 
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;delete
 
 func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 
-	namespaces := corev1.NamespaceList{}
+	namespace := corev1.Namespace{}
+	if err := r.Get(ctx, request.NamespacedName, &namespace); err != nil {
+		if apierrors.IsNotFound(err) {
+			return reconcile.Result{}, nil
+		}
+	}
 
-	expireLabel, err := labels.NewRequirement("auto-delete", selection.Exists, []string{})
+	if namespace.Status.Phase == corev1.NamespaceTerminating {
+		log.V(1).Info("Namespace is already terminating", "namespace", namespace.Name)
+		return reconcile.Result{}, nil
+	}
+
+	expiry := namespace.Labels[cleanupLabel]
+	duration, err := time.ParseDuration(expiry)
 	if err != nil {
-		log.Error(err, "Failed to build new requirement")
+		log.Error(err, "Invalid duration for namespace", "namespace", namespace.Name, "expiry", expiry)
 		return reconcile.Result{}, err
 	}
 
-	expireLabelSelector := labels.NewSelector().Add(*expireLabel)
-	expireLabelListOption := client.MatchingLabelsSelector{Selector: expireLabelSelector}
+	expiresOn := namespace.GetCreationTimestamp().Add(duration)
+	if expiresOn.Before(time.Now()) {
+		log.V(1).Info("Deleting namespace", "namespace", namespace.Name)
 
-	err = r.List(ctx, &namespaces, expireLabelListOption)
-	if err != nil {
-		log.Error(err, "Failed to list namespaces")
-		return reconcile.Result{}, client.IgnoreNotFound(err)
-	}
-
-	for _, ns := range namespaces.Items {
-		if ns.Status.Phase == corev1.NamespaceTerminating {
-			log.V(1).Info("namespace is already terminating", "namespace", ns.Name)
-			continue
-		}
-
-		expiry := ns.Labels["auto-delete"]
-
-		duration, err := time.ParseDuration(expiry)
-		if err != nil {
-			log.Error(err, "Invalid duration for namespace", "namespace", ns.Name, "expiry", expiry)
-			continue
-		}
-
-		expiresOn := ns.GetCreationTimestamp().Add(duration)
-		if expiresOn.Before(time.Now()) {
-			log.V(1).Info("Deleting namespace", "namespace", ns.Name)
-
-			err = r.Delete(ctx, &ns)
-			if err != nil {
-				log.Error(err, "Failed to delete namespace", "namespace", ns.Name)
-				continue
-			}
+		if err := r.Delete(ctx, &namespace); err != nil {
+			log.Error(err, "Failed to delete namespace", "namespace", namespace.Name)
+			return reconcile.Result{}, err
 		}
 	}
 
-	return reconcile.Result{}, nil
+	log.V(1).Info("Requeue reconciliation", "interval", r.interval)
+	return reconcile.Result{RequeueAfter: r.interval}, nil
 }

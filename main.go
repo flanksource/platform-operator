@@ -46,12 +46,12 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
-	var watchInterval time.Duration
+	var cleanupInterval time.Duration
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.DurationVar(&watchInterval, "watch-interval", 10*time.Minute, "Minimum frequency at which watched resources are reconciled.")
+	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runss.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -63,15 +63,13 @@ func main() {
 		MetricsBindAddress: metricsAddr,
 		LeaderElection:     enableLeaderElection,
 		Port:               9443,
-		SyncPeriod:         &watchInterval,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	err = cleanup.Add(mgr)
-	if err != nil {
+	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
 		os.Exit(1)
 	}
