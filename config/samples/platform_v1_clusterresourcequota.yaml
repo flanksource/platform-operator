@@ -1,0 +1,17 @@
+apiVersion: platform.flanksource.com/v1
+kind: ClusterResourceQuota
+metadata:
+  name: clusterresourcequota-sample
+spec:
+  quota:
+    hard:
+      pods: "100"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: resourcequota-sample
+  namespace: default
+spec:
+  hard:
+    pods: "10"

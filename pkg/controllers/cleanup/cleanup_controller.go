@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-var (
+const (
 	name = "cleanup-controller"
 
 	// this is the label used for the lookup of the ns to clean-up (i.e auto-delete=24h)
@@ -63,30 +63,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	isAutoDeleteLabelSet := predicate.Funcs{
-		CreateFunc: func(e event.CreateEvent) bool {
-			ns, ok := e.Object.(*corev1.Namespace)
-			if !ok {
-				return false
-			}
-
-			_, found := ns.GetLabels()[cleanupLabel]
-			return found
-		},
-		UpdateFunc: func(e event.UpdateEvent) bool {
-			newNs, ok := e.ObjectNew.(*corev1.Namespace)
-			if !ok {
-				return false
-			}
-
-			_, found := newNs.GetLabels()[cleanupLabel]
-			return found
-		},
-	}
-
 	if err := c.Watch(
 		&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{},
-		isAutoDeleteLabelSet,
+		predicate.Funcs{CreateFunc: onCreate, UpdateFunc: onUpdate},
 	); err != nil {
 		return err
 	}
@@ -114,6 +93,8 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 		if apierrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
+
+		return reconcile.Result{}, err
 	}
 
 	if namespace.Status.Phase == corev1.NamespaceTerminating {
@@ -140,4 +121,23 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	log.V(1).Info("Requeue reconciliation", "interval", r.interval)
 	return reconcile.Result{RequeueAfter: r.interval}, nil
+}
+
+// these functions are passed to the predicate
+// objects are queued only in case the label exists
+//
+func onCreate(e event.CreateEvent) bool {
+	namespace := e.Object.(*corev1.Namespace)
+
+	labels := namespace.GetLabels()
+	_, isSet := labels[cleanupLabel]
+	return isSet
+}
+
+func onUpdate(e event.UpdateEvent) bool {
+	namespace := e.ObjectNew.(*corev1.Namespace)
+
+	labels := namespace.GetLabels()
+	_, isSet := labels[cleanupLabel]
+	return isSet
 }
