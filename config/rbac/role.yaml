@@ -9,9 +9,37 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - resourcequotas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - namespaces
   verbs:
   - delete
   - get
   - list
   - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas/status
+  verbs:
+  - get
+  - patch
+  - update

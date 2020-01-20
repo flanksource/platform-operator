@@ -28,7 +28,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
+
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
+	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -40,6 +43,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
+	_ = platformv1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -69,7 +73,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO: @mazzy89 Make the adding of controllers more dynamic
+	//
 	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
+		os.Exit(1)
+	}
+
+	if err := clusterresourcequota.Add(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
 		os.Exit(1)
 	}
