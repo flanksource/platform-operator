@@ -53,9 +53,12 @@ func main() {
 	var cleanupInterval time.Duration
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+
 	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runss.")
+
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -73,7 +76,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO: @mazzy89 Make the adding of controllers more dynamic
+	// TODO(mazzy89): Make the adding of controllers more dynamic
 	//
 	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
@@ -81,9 +84,17 @@ func main() {
 	}
 
 	if err := clusterresourcequota.Add(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
 		os.Exit(1)
 	}
+
+	// Setup webhooks
+	setupLog.Info("setting up webhook server")
+	hookServer := mgr.GetWebhookServer()
+
+	setupLog.Info("registering webhooks to the webhook server")
+	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook())
+	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook())
 
 	// +kubebuilder:scaffold:builder
 
