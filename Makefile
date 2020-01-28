@@ -1,4 +1,7 @@
 
+# make sure sub-commands don't use eg. fish shell
+export SHELL := /bin/bash
+
 # Image URL to use all building/pushing image targets
 IMG ?= controller
 TAG ?= latest
@@ -14,36 +17,43 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# find or download controller-gen
+# download controller-gen if necessary
+controller-gen:
+ifeq ($(shell command -v controller-gen),)
+	@(cd /tmp; GO111MODULE=on go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4)
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+else
+CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
 all: manager
 
 # Run tests
-test: generate fmt vet manifests
+test: fmt vet
 	go test ./... -coverprofile cover.out
 
 # Build manager binary
-manager: generate fmt vet
+manager: fmt vet
 	go build -o bin/manager cmd/manager/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet manifests
-	go run .cmd/manager/main.go
+run: generate fmt vet
+	go run cmd/manager/main.go
 
-# Install CRDs into a cluster
-install: manifests
-	kustomize build config/crd | kubectl apply -f -
+# Deploy CRDS, webhoook and controller in the configured Kubernetes cluster in ~/.kube/config
+deploy: generate
+	cd config/operator/manager && kustomize edit set image controller=${IMG}:${TAG}
+	kubectl apply -f config/deploy/manifests.yaml
 
-# Uninstall CRDs from a cluster
-uninstall: manifests
-	kustomize build config/crd | kubectl delete -f -
-
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy: manifests
-	cd config/manager && kustomize edit set image controller=${IMG}:${TAG}
-	kustomize build config/default | kubectl apply -f -
-
-# Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+generate: controller-gen
+	# Generate webhook
+	$(CONTROLLER_GEN) webhook object:headerFile=./hack/boilerplate.go.txt paths=./pkg/... output:webhook:artifacts:config=config/operator/webhook
+	# Generate manifests e.g. CRD, RBAC etc.
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager paths="./pkg/..." output:crd:artifacts:config=config/crds/bases output:rbac:artifacts:config=config/operator/rbac
+	# set image name and tag
+	# Generate an all-in-one version including the operator manifests 
+	kubectl kustomize config/operator/default > config/deploy/manifests.yaml
 
 # Run go fmt against code
 fmt:
@@ -53,9 +63,9 @@ fmt:
 vet:
 	go vet ./...
 
-# Generate code
-generate: controller-gen
-	$(CONTROLLER_GEN) object:headerFile=./hack/boilerplate.go.txt paths="./..."
+#####################################
+##  --       Release           --  ##
+#####################################
 
 # Build the docker image
 docker-build: test
@@ -72,20 +82,3 @@ docker-push:
 
 ci-release: docker-build docker-login docker-push
 	@ echo $(REGISTRY)/$(IMG):$(TAG) was pushed!
-
-# find or download controller-gen
-# download controller-gen if necessary
-controller-gen:
-ifeq (, $(shell which controller-gen))
-	@{ \
-	set -e ;\
-	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
-	cd $$CONTROLLER_GEN_TMP_DIR ;\
-	go mod init tmp ;\
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.4 ;\
-	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
-	}
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
-endif
