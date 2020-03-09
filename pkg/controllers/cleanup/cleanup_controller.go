@@ -18,10 +18,12 @@ package cleanup
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -83,8 +85,21 @@ type ReconcileCleanup struct {
 	interval time.Duration
 }
 
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;delete
+// parseDuration parses strings into time.Duration with added support for day 'd' units
+func parseDuration(expiry string) (*time.Duration, error) {
+	if strings.HasSuffix(expiry, "d") {
+		days, err := strconv.Atoi(expiry[0 : len(expiry)-1])
+		if err != nil {
+			return nil, err
+		} else {
+			expiry = fmt.Sprintf("%dh", days*24)
+		}
+	}
+	duration, err := time.ParseDuration(expiry)
+	return &duration, err
+}
 
+// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;delete
 func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 
@@ -103,13 +118,13 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 	}
 
 	expiry := namespace.Labels[cleanupLabel]
-	duration, err := time.ParseDuration(expiry)
+	duration, err := parseDuration(expiry)
 	if err != nil {
 		log.Error(err, "Invalid duration for namespace", "namespace", namespace.Name, "expiry", expiry)
 		return reconcile.Result{}, err
 	}
 
-	expiresOn := namespace.GetCreationTimestamp().Add(duration)
+	expiresOn := namespace.GetCreationTimestamp().Add(*duration)
 	if expiresOn.Before(time.Now()) {
 		log.V(1).Info("Deleting namespace", "namespace", namespace.Name)
 
@@ -125,7 +140,6 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 
 // these functions are passed to the predicate
 // objects are queued only in case the label exists
-//
 func onCreate(e event.CreateEvent) bool {
 	namespace := e.Object.(*corev1.Namespace)
 

@@ -15,3 +15,28 @@ limitations under the License.
 */
 
 package cleanup
+
+import (
+	"testing"
+)
+
+func TestExpiryInDays(t *testing.T) {
+
+	fixtures := map[string]float64{
+		"3d": float64(72),
+		"3h": float64(3),
+	}
+
+	for duration, hours := range fixtures {
+		t.Run(duration, func(t *testing.T) {
+			d, err := parseDuration(duration)
+			if err != nil {
+				t.Error(err)
+				t.FailNow()
+			} else if d.Hours() != hours {
+				t.Fail()
+			}
+		})
+	}
+
+}
