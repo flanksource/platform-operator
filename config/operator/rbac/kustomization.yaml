@@ -5,3 +5,5 @@ resources:
   - clusterresourcequota_editor_role.yaml
   - leader_election_role.yaml
   - leader_election_role_binding.yaml
+  - additional.yaml
+  - service_account.yaml

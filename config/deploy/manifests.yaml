@@ -212,6 +212,12 @@ webhooks:
     resources:
     - resourcequotas
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-operator
+  namespace: platform-system
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -244,6 +250,20 @@ rules:
   - events
   verbs:
   - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-manager-configmap
+  namespace: platform-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmap
+  verbs:
+  - get
+  - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -295,6 +315,22 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
+  name: platform-manager-additional
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+  - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
   name: platform-manager
 rules:
 - apiGroups:
@@ -337,7 +373,34 @@ roleRef:
   name: platform-leader-election
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: platform-operator
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-manager-configmap
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-manager-configmap
+subjects:
+- kind: ServiceAccount
+  name: platform-operator
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-manager-additional
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-operator-additional
+subjects:
+- kind: ServiceAccount
+  name: platform-operator
   namespace: platform-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -350,7 +413,7 @@ roleRef:
   name: platform-manager
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: platform-operator
   namespace: platform-system
 ---
 apiVersion: v1
@@ -387,7 +450,8 @@ spec:
         - --enable-leader-election
         command:
         - /manager
-        image: quay.io/toni0/platform-operator:0.2.0.1
+        image: quay.io/toni0/platform-operator:add-pods-annotations
+        imagePullPolicy: Always
         name: manager
         ports:
         - containerPort: 9443
@@ -404,6 +468,7 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
+      serviceAccountName: platform-operator
       terminationGracePeriodSeconds: 10
       volumes:
       - name: cert
