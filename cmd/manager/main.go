@@ -19,19 +19,19 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 	"time"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
+	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
+	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
-
-	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
-	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -51,13 +51,16 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var cleanupInterval time.Duration
+	var annotations string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 
-	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runss.")
+	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runs.")
+
+	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 
 	flag.Parse()
 
@@ -93,6 +96,7 @@ func main() {
 	hookServer := mgr.GetWebhookServer()
 
 	setupLog.Info("registering webhooks to the webhook server")
+	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
 	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook())
 	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook())
 
