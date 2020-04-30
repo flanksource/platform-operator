@@ -28,6 +28,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
+        - --annotations=foo.flanksource.com/bar,foo.flanksource.com/baz
         image: quay.io/toni0/platform-operator:add-pods-annotations
         imagePullPolicy: Always
         name: manager
