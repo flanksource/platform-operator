@@ -25,6 +25,7 @@ import (
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
 	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -50,7 +51,7 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
-	var cleanupInterval time.Duration
+	var cleanupInterval, annotationInterval time.Duration
 	var annotations string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -59,6 +60,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 
 	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runs.")
+	flag.DurationVar(&annotationInterval, "annotation-interval", 10*time.Minute, "Frequency at which the annotation controller runs.")
 
 	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 
@@ -88,6 +90,11 @@ func main() {
 
 	if err := clusterresourcequota.Add(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
+		os.Exit(1)
+	}
+
+	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
+		setupLog.Error(err, "unaable to create controller", "controller", "PodAnnotator")
 		os.Exit(1)
 	}
 
