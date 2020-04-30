@@ -1,4 +1,4 @@
-// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io
+// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=annotate-pods-v1.platform.flanksource.com
 package v1
 
 import (
@@ -9,12 +9,12 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=annotate-pods-v1.platform.flanksource.com
 func PodAnnotatorMutateWebhook(client client.Client, annotations []string) *admission.Webhook {
 	return &admission.Webhook{
 		Handler: NewPodAnnotatorHandler(client, annotations),
@@ -44,6 +44,8 @@ func (a *podAnnotatorHandler) Handle(ctx context.Context, req admission.Request)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	log.Infof("req name: %s namespace %s", req.Name, req.Namespace)
+	log.Infof("pod name: %s namespace %s", pod.Name, pod.Namespace)
 	namespace := corev1.Namespace{}
 	if err := a.Client.Get(ctx, types.NamespacedName{Name: pod.Namespace}, &namespace); err != nil {
 		return admission.Errored(http.StatusBadRequest, errors.Wrapf(err, "failed to get namespace %s", pod.Namespace))
