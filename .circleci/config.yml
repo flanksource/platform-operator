@@ -13,7 +13,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker
-      - run: make ci-release IMG=flanksource/platform-operator TAG=$(date +%Y%m%d%M%H%M%S)
+      - run: ./scripts/release.sh
   test-e2e:
     <<: *go
     steps:
