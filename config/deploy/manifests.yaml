@@ -181,7 +181,7 @@ webhooks:
       name: platform-webhook-service
       namespace: platform-system
       path: /mutate-v1-pod
-  failurePolicy: Fail
+  failurePolicy: Ignore
   name: annotate-pods-v1.platform.flanksource.com
   rules:
   - apiGroups:
@@ -280,20 +280,6 @@ rules:
   - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: platform-manager-configmap
-  namespace: platform-system
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - configmap
-  verbs:
-  - get
-  - list
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: platform-clusterresourcequota-editor
@@ -343,24 +329,26 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: platform-manager-additional
+  name: platform-manager
 rules:
 - apiGroups:
   - ""
   resources:
   - namespaces
   verbs:
+  - delete
   - get
   - list
   - watch
-  - delete
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  creationTimestamp: null
-  name: platform-manager
-rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -399,33 +387,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: platform-leader-election
-subjects:
-- kind: ServiceAccount
-  name: platform-operator
-  namespace: platform-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: platform-manager-configmap
-  namespace: platform-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: platform-manager-configmap
-subjects:
-- kind: ServiceAccount
-  name: platform-operator
-  namespace: platform-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: platform-manager-additional
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: platform-operator-additional
 subjects:
 - kind: ServiceAccount
   name: platform-operator

@@ -1,3 +1,19 @@
+/*
+Copyright 2020 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package podannotator
 
 import (
@@ -49,8 +65,9 @@ func addPodReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 	return nil
 }
 
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list
-// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;update
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update;watch
+
 func (r *PodReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 
@@ -68,7 +85,7 @@ func (r *PodReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	for _, pod := range podsChanged {
 		if err := r.Client.Update(ctx, &pod); err != nil {
-			log.Error(err, "failed to update pod %s in namespace %s", request.Name, request.Namespace)
+			log.Error(err, "failed to update", "pod", request.Name, "namespace", request.Namespace)
 			return reconcile.Result{}, err
 		}
 	}

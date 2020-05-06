@@ -1,4 +1,3 @@
-// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=annotate-pods-v1.platform.flanksource.com
 package v1
 
 import (
@@ -25,6 +24,8 @@ type podAnnotatorHandler struct {
 	annotations map[string]bool
 }
 
+// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=ignore,groups="",resources=pods,verbs=create;update,versions=v1,name=annotate-pods-v1.platform.flanksource.com
+
 func NewPodAnnotatorHandler(client client.Client, annotations []string) *podAnnotatorHandler {
 	annotationsMap := map[string]bool{}
 
@@ -45,6 +46,14 @@ func (a *podAnnotatorHandler) Handle(ctx context.Context, req admission.Request)
 	namespace := corev1.Namespace{}
 	if err := a.Client.Get(ctx, types.NamespacedName{Name: req.Namespace}, &namespace); err != nil {
 		return admission.Errored(http.StatusBadRequest, errors.Wrapf(err, "failed to get namespace %s", pod.Namespace))
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+
+	if namespace.Annotations == nil {
+		namespace.Annotations = map[string]string{}
 	}
 
 	for k, v := range namespace.Annotations {
