@@ -1,9 +1,15 @@
-package podannotator
+package test
 
 import (
+	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
+	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
+	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -34,13 +40,17 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
 
 	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{}
+	testEnv = &envtest.Environment{
+		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crds", "bases")},
+	}
 
 	cfg, err := testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
 	err = scheme.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = platformv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme
@@ -50,18 +60,25 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	err = Add(k8sManager, 5*time.Second, []string{"foo.example.com/bar"})
+	err = cleanup.Add(k8sManager, 5*time.Second)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = clusterresourcequota.Add(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = podannotator.Add(k8sManager, 5*time.Second, []string{"foo.example.com/bar"})
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
 		err = k8sManager.Start(ctrl.SetupSignalHandler())
-		Expect(err).ToNot(HaveOccurred())
+		fmt.Printf("Expected k8s manager to start: %v", err)
 	}()
 
-	k8sClient = k8sManager.GetClient()
-	Expect(k8sClient).ToNot(BeNil())
+	//k8sClient = k8sManager.GetClient()
+	//Expect(k8sClient).ToNot(BeNil())
 
-	k8sClient = k8sManager.GetClient()
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
 	close(done)

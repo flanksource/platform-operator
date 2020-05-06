@@ -56,4 +56,4 @@ fetch_kb_tools
 
 setup_envs
 
-go test github.com/flanksource/platform-operator/pkg/controllers/podannotator
+go test github.com/flanksource/platform-operator/test

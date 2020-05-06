@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/flanksource/commons v1.2.0
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.1.0
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.10.2

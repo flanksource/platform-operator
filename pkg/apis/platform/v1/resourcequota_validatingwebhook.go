@@ -53,6 +53,34 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	namespacesList := &corev1.NamespaceList{}
+	if err := v.client.List(ctx, namespacesList); err != nil {
+		qlog.Error(err, "Failed to list namespaces")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	// store here the total hard of all resource quotas
+	hardTotals := corev1.ResourceList{}
+	for _, namespace := range namespacesList.Items {
+		namespaceName := namespace.Name
+
+		rqList := &corev1.ResourceQuotaList{}
+		if err := v.client.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
+			qlog.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+
+		if len(rqList.Items) == 0 {
+			continue
+		}
+
+		for _, rq := range rqList.Items {
+			hardTotals = utilquota.Add(hardTotals, rq.Status.Hard)
+		}
+	}
+
+	hardTotals = utilquota.Add(hardTotals, rq.Spec.Hard)
+
 	// in case in the cluster we define multiple resource quotas
 	// NOTE: in the future we could have cluster resource quotas applied to
 	//       some namespaces
@@ -67,7 +95,7 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 	}
 
 	for _, q := range quotaList.Items {
-		if isOk, rn := utilquota.LessThanOrEqual(rq.Spec.Hard, q.Spec.Quota.Hard); !isOk {
+		if isOk, rn := utilquota.LessThanOrEqual(hardTotals, q.Spec.Quota.Hard); !isOk {
 			return admission.Denied(fmt.Sprintf("resource quota exceeds the cluster resource quota %s in %v", q.Name, rn))
 		}
 	}
