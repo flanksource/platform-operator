@@ -77,7 +77,7 @@ var _ = XDescribe("ClusterResourceQuota Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			r1 := v1.ResourceQuota{
-				TypeMeta:   metav1.TypeMeta{"v1", "ResourceQuota"},
+				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ResourceQuota"},
 				ObjectMeta: metav1.ObjectMeta{Name: "rq", Namespace: n1.Name},
 				Spec: v1.ResourceQuotaSpec{
 					Hard: v1.ResourceList{
@@ -90,7 +90,7 @@ var _ = XDescribe("ClusterResourceQuota Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			r2 := v1.ResourceQuota{
-				TypeMeta:   metav1.TypeMeta{"v1", "ResourceQuota"},
+				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ResourceQuota"},
 				ObjectMeta: metav1.ObjectMeta{Name: "rq", Namespace: n2.Name},
 				Spec: v1.ResourceQuotaSpec{
 					Hard: v1.ResourceList{
