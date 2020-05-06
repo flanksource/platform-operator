@@ -54,7 +54,7 @@ type ClusterResourceQuota struct {
 	Spec ClusterResourceQuotaSpec `json:"spec,omitempty"`
 
 	// Status defines the actual enforced quota and its current usage
-	Status *ClusterResourceQuotaStatus `json:"status,omitempty"`
+	Status ClusterResourceQuotaStatus `json:"status,omitempty"`
 }
 
 // ResourceQuotasStatusByNamespace bundles multiple ResourceQuotaStatusByNamespace

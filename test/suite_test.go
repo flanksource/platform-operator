@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -29,6 +30,10 @@ var k8sManager ctrl.Manager
 var testEnv *envtest.Environment
 
 func TestAPIs(t *testing.T) {
+	if os.Getenv("TEST_E2E") != "true" {
+		return
+	}
+
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

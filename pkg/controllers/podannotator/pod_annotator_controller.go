@@ -74,7 +74,7 @@ type ReconcilePodAnnotations struct {
 }
 
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list
-// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;update
 func (r *ReconcilePodAnnotations) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 

@@ -94,7 +94,7 @@ func main() {
 	}
 
 	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
-		setupLog.Error(err, "unaable to create controller", "controller", "PodAnnotator")
+		setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
 		os.Exit(1)
 	}
 

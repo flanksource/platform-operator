@@ -19,8 +19,6 @@ package clusterresourcequota
 import (
 	"context"
 
-	"github.com/pkg/errors"
-
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -125,10 +123,6 @@ func (r *ReconcileClusterResourceQuota) Reconcile(request reconcile.Request) (re
 
 		log.Error(err, "Failed to get Cluster Resource Quota")
 		return reconcile.Result{}, err
-	}
-
-	if quota.Status == nil {
-		return reconcile.Result{}, errors.New("cluster resource quota status is nil")
 	}
 
 	namespacesList := &corev1.NamespaceList{}
