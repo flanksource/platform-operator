@@ -6,7 +6,7 @@ go: &go
     GOPROXY: https://proxy.golang.org
   docker:
     - image: circleci/golang:1.12
-    working_directory: /go/src/github.com/moshloop/platform-operator
+  working_directory: /go/src/github.com/moshloop/platform-operator
 jobs:
   release:
     <<: *go
