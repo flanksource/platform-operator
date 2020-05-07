@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	utilquota "k8s.io/kubernetes/pkg/quota/v1"
@@ -33,9 +34,9 @@ var qlog = logf.Log.WithName("clusterresourcequota-validation")
 
 // +kubebuilder:webhook:path=/validate-clusterresourcequota-platform-flanksource-com-v1,mutating=false,failurePolicy=fail,groups=platform.flanksource.com,resources=clusterresourcequotas,verbs=create;update,versions=v1,name=clusterresourcequotas-validation-v1.platform.flanksource.com
 
-func ClusterResourceQuotaValidatingWebhook() *admission.Webhook {
+func ClusterResourceQuotaValidatingWebhook(mtx *sync.Mutex) *admission.Webhook {
 	return &admission.Webhook{
-		Handler: &validatingClusterResourceQuotaHandler{},
+		Handler: &validatingClusterResourceQuotaHandler{mtx: mtx},
 	}
 }
 
@@ -43,11 +44,15 @@ func ClusterResourceQuotaValidatingWebhook() *admission.Webhook {
 type validatingClusterResourceQuotaHandler struct {
 	client  client.Client
 	decoder *admission.Decoder
+	mtx     *sync.Mutex
 }
 
 var _ admission.Handler = &validatingClusterResourceQuotaHandler{}
 
 func (v *validatingClusterResourceQuotaHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	quota := &ClusterResourceQuota{}
 
 	if err := v.decoder.Decode(req, quota); err != nil {

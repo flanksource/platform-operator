@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	utilquota "k8s.io/kubernetes/pkg/quota/v1"
@@ -33,20 +34,24 @@ var rqLog = logf.Log.WithName("resourcequota-validation")
 
 // +kubebuilder:webhook:path=/validate-resourcequota-v1,mutating=false,failurePolicy=fail,groups="",resources=resourcequotas,verbs=create;update,versions=v1,name=resourcequotas-validation-v1.platform.flanksource.com
 
-func ResourceQuotaValidatingWebhook() *admission.Webhook {
+func ResourceQuotaValidatingWebhook(mtx *sync.Mutex) *admission.Webhook {
 	return &admission.Webhook{
-		Handler: &validatingResourceQuotaHandler{},
+		Handler: &validatingResourceQuotaHandler{mtx: mtx},
 	}
 }
 
 type validatingResourceQuotaHandler struct {
 	client  client.Client
 	decoder *admission.Decoder
+	mtx     *sync.Mutex
 }
 
 var _ admission.Handler = &validatingResourceQuotaHandler{}
 
 func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	rq := &corev1.ResourceQuota{}
 
 	if err := v.decoder.Decode(req, rq); err != nil {

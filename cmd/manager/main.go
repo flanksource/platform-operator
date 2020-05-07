@@ -20,6 +20,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
@@ -82,7 +83,7 @@ func main() {
 	}
 
 	// TODO(mazzy89): Make the adding of controllers more dynamic
-	//
+
 	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
 		os.Exit(1)
@@ -102,10 +103,12 @@ func main() {
 	setupLog.Info("setting up webhook server")
 	hookServer := mgr.GetWebhookServer()
 
+	mtx := &sync.Mutex{}
+
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
-	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook())
-	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook())
+	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx))
+	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx))
 
 	// +kubebuilder:scaffold:builder
 
