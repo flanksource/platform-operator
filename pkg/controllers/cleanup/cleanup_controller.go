@@ -99,7 +99,8 @@ func parseDuration(expiry string) (*time.Duration, error) {
 	return &duration, err
 }
 
-// +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;delete
+
 func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 

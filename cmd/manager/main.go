@@ -19,19 +19,21 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
+	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
+	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
-
-	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
-	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -50,14 +52,18 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
-	var cleanupInterval time.Duration
+	var cleanupInterval, annotationInterval time.Duration
+	var annotations string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 
-	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runss.")
+	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runs.")
+	flag.DurationVar(&annotationInterval, "annotation-interval", 10*time.Minute, "Frequency at which the annotation controller runs.")
+
+	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 
 	flag.Parse()
 
@@ -77,7 +83,7 @@ func main() {
 	}
 
 	// TODO(mazzy89): Make the adding of controllers more dynamic
-	//
+
 	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
 		os.Exit(1)
@@ -88,13 +94,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
+		os.Exit(1)
+	}
+
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 	hookServer := mgr.GetWebhookServer()
 
+	mtx := &sync.Mutex{}
+
 	setupLog.Info("registering webhooks to the webhook server")
-	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook())
-	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook())
+	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
+	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx))
+	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx))
 
 	// +kubebuilder:scaffold:builder
 

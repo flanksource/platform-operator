@@ -9,17 +9,26 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - resourcequotas
+  - namespaces
   verbs:
+  - delete
   - get
   - list
   - watch
 - apiGroups:
   - ""
   resources:
-  - namespaces
+  - pods
   verbs:
-  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - resourcequotas
+  verbs:
   - get
   - list
   - watch

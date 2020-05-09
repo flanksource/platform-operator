@@ -1,21 +1,34 @@
 version: 2
+go: &go
+  environment:
+    GO111MODULE: "on"
+    CGO_ENABLED: 0
+    GOPROXY: https://proxy.golang.org
+  docker:
+    - image: circleci/golang:1.12
+  working_directory: /go/src/github.com/moshloop/platform-operator
 jobs:
   release:
-    docker:
-      - image: circleci/golang:1.12
-        environment:
-          GO111MODULE: "on"
-    working_directory: /go/src/github.com/flanksource/platform-operator
+    <<: *go
     steps:
       - checkout
       - setup_remote_docker
-      - run: make ci-release IMG=flanksource/platform-operator TAG=$(date +%Y%m%d%M%H%M%S)
+      - run: ./scripts/release.sh
+  test-e2e:
+    <<: *go
+    steps:
+      - checkout
+      - run: go mod download
+      - run: ./test/e2e.sh
 
 workflows:
   version: 2
   build:
     jobs:
+      - test-e2e
       - release:
+          requires:
+            - test-e2e
           context: Github
           filters:
             tags:

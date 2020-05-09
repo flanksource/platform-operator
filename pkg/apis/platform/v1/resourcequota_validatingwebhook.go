@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	utilquota "k8s.io/kubernetes/pkg/quota/v1"
@@ -33,25 +34,57 @@ var rqLog = logf.Log.WithName("resourcequota-validation")
 
 // +kubebuilder:webhook:path=/validate-resourcequota-v1,mutating=false,failurePolicy=fail,groups="",resources=resourcequotas,verbs=create;update,versions=v1,name=resourcequotas-validation-v1.platform.flanksource.com
 
-func ResourceQuotaValidatingWebhook() *admission.Webhook {
+func ResourceQuotaValidatingWebhook(mtx *sync.Mutex) *admission.Webhook {
 	return &admission.Webhook{
-		Handler: &validatingResourceQuotaHandler{},
+		Handler: &validatingResourceQuotaHandler{mtx: mtx},
 	}
 }
 
 type validatingResourceQuotaHandler struct {
 	client  client.Client
 	decoder *admission.Decoder
+	mtx     *sync.Mutex
 }
 
 var _ admission.Handler = &validatingResourceQuotaHandler{}
 
 func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	rq := &corev1.ResourceQuota{}
 
 	if err := v.decoder.Decode(req, rq); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
+
+	namespacesList := &corev1.NamespaceList{}
+	if err := v.client.List(ctx, namespacesList); err != nil {
+		qlog.Error(err, "Failed to list namespaces")
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	// store here the total hard of all resource quotas
+	hardTotals := corev1.ResourceList{}
+	for _, namespace := range namespacesList.Items {
+		namespaceName := namespace.Name
+
+		rqList := &corev1.ResourceQuotaList{}
+		if err := v.client.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
+			qlog.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+
+		if len(rqList.Items) == 0 {
+			continue
+		}
+
+		for _, rq := range rqList.Items {
+			hardTotals = utilquota.Add(hardTotals, rq.Status.Hard)
+		}
+	}
+
+	hardTotals = utilquota.Add(hardTotals, rq.Spec.Hard)
 
 	// in case in the cluster we define multiple resource quotas
 	// NOTE: in the future we could have cluster resource quotas applied to
@@ -67,7 +100,7 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 	}
 
 	for _, q := range quotaList.Items {
-		if isOk, rn := utilquota.LessThanOrEqual(rq.Spec.Hard, q.Spec.Quota.Hard); !isOk {
+		if isOk, rn := utilquota.LessThanOrEqual(hardTotals, q.Spec.Quota.Hard); !isOk {
 			return admission.Denied(fmt.Sprintf("resource quota exceeds the cluster resource quota %s in %v", q.Name, rn))
 		}
 	}

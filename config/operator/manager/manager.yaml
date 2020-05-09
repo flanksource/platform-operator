@@ -8,7 +8,7 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: controller-manager
+  name: operator
   namespace: system
   labels:
     control-plane: controller-manager
@@ -22,12 +22,15 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      serviceAccountName: operator
       containers:
       - command:
         - /manager
         args:
         - --enable-leader-election
-        image: controller:latest
+        - --annotations=foo.flanksource.com/bar,foo.flanksource.com/baz
+        image: quay.io/toni0/platform-operator:add-pods-annotations
+        imagePullPolicy: Always
         name: manager
         resources:
           limits:
