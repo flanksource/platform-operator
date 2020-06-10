@@ -18,6 +18,8 @@ package main
 
 import (
 	"flag"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strings"
 	"sync"
@@ -111,6 +113,11 @@ func main() {
 	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx))
 
 	// +kubebuilder:scaffold:builder
+
+	go func() {
+		setupLog.Info("Starting profiling server on localhost:6060")
+		setupLog.Error(http.ListenAndServe("localhost:6060", nil), "problem starting pprof server")
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
