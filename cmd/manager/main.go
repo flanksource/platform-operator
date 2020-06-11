@@ -116,7 +116,7 @@ func main() {
 
 	go func() {
 		setupLog.Info("Starting profiling server on localhost:6060")
-		setupLog.Error(http.ListenAndServe("localhost:6060", nil), "problem starting pprof server")
+		setupLog.Error(http.ListenAndServe("0.0.0.0:6060", nil), "problem starting pprof server")
 	}()
 
 	setupLog.Info("starting manager")
