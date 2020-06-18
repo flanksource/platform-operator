@@ -1,0 +1,10 @@
+name: Publish Docker
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - run: go mod download
+      - run: ./test/e2e.sh
