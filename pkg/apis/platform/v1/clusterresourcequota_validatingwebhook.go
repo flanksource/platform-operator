@@ -34,17 +34,18 @@ var qlog = logf.Log.WithName("clusterresourcequota-validation")
 
 // +kubebuilder:webhook:path=/validate-clusterresourcequota-platform-flanksource-com-v1,mutating=false,failurePolicy=fail,groups=platform.flanksource.com,resources=clusterresourcequotas,verbs=create;update,versions=v1,name=clusterresourcequotas-validation-v1.platform.flanksource.com
 
-func ClusterResourceQuotaValidatingWebhook(mtx *sync.Mutex) *admission.Webhook {
+func ClusterResourceQuotaValidatingWebhook(mtx *sync.Mutex, validationEnabled bool) *admission.Webhook {
 	return &admission.Webhook{
-		Handler: &validatingClusterResourceQuotaHandler{mtx: mtx},
+		Handler: &validatingClusterResourceQuotaHandler{mtx: mtx, validationEnabled: validationEnabled},
 	}
 }
 
 // ClusterResourceQuotaValidator validates ClusterResourceQuotas
 type validatingClusterResourceQuotaHandler struct {
-	client  client.Client
-	decoder *admission.Decoder
-	mtx     *sync.Mutex
+	client            client.Client
+	decoder           *admission.Decoder
+	mtx               *sync.Mutex
+	validationEnabled bool
 }
 
 var _ admission.Handler = &validatingClusterResourceQuotaHandler{}
@@ -57,6 +58,11 @@ func (v *validatingClusterResourceQuotaHandler) Handle(ctx context.Context, req 
 
 	if err := v.decoder.Decode(req, quota); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if !v.validationEnabled {
+		qlog.Info("validate resource quota flag is not enabled. All requests will be declared valid")
+		return admission.Allowed("")
 	}
 
 	namespacesList := &corev1.NamespaceList{}

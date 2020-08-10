@@ -56,6 +56,7 @@ func main() {
 	var enableLeaderElection bool
 	var cleanupInterval, annotationInterval time.Duration
 	var annotations string
+	var enableClusterResourceQuota bool
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
@@ -66,6 +67,7 @@ func main() {
 	flag.DurationVar(&annotationInterval, "annotation-interval", 10*time.Minute, "Frequency at which the annotation controller runs.")
 
 	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
+	flag.BoolVar(&enableClusterResourceQuota, "enable-cluster-resource-quota", true, "Enable/Disable cluster resource quota")
 
 	flag.Parse()
 
@@ -91,9 +93,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := clusterresourcequota.Add(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
-		os.Exit(1)
+	if enableClusterResourceQuota {
+		if err := clusterresourcequota.Add(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
+			os.Exit(1)
+		}
 	}
 
 	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
@@ -109,8 +113,8 @@ func main() {
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
-	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx))
-	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx))
+	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
+	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 
 	// +kubebuilder:scaffold:builder
 
