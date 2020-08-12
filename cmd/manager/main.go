@@ -28,6 +28,7 @@ import (
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
 	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"github.com/flanksource/platform-operator/pkg/controllers/ingress"
 	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -57,6 +58,9 @@ func main() {
 	var cleanupInterval, annotationInterval time.Duration
 	var annotations string
 	var enableClusterResourceQuota bool
+	var oauth2ProxySvcName string
+	var oauth2ProxySvcNamespace string
+	var domain string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
@@ -68,6 +72,10 @@ func main() {
 
 	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 	flag.BoolVar(&enableClusterResourceQuota, "enable-cluster-resource-quota", true, "Enable/Disable cluster resource quota")
+
+	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "oauth2-proxy", "Name of oauth2-proxy service")
+	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "ingress-nginx", "Name of oauth2-proxy service namespace")
+	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
 	flag.Parse()
 
@@ -102,6 +110,11 @@ func main() {
 
 	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
+		os.Exit(1)
+	}
+
+	if err := ingress.Add(mgr, annotationInterval, oauth2ProxySvcName, oauth2ProxySvcNamespace, domain); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "IngressAnnotator")
 		os.Exit(1)
 	}
 
