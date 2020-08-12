@@ -23,7 +23,7 @@ type ingressAnnotatorHandler struct {
 	ingressAnnotator *utilsk8s.IngressAnnotator
 }
 
-// +kubebuilder:webhook:path=/mutate-v1beta1-ingress,mutating=true,failurePolicy=ignore,groups="extensions",resources=ingress,verbs=create;update,versions=v1beta1,name=annotate-ingress-v1beta1.platform.flanksource.com
+// +kubebuilder:webhook:path=/mutate-v1-ingress,mutating=true,failurePolicy=ignore,groups="extensions",resources=ingresses,verbs=create;update,versions=v1beta1,name=annotate-ingress-v1.platform.flanksource.com
 
 func NewIngressAnnotatorHandler(client client.Client, svcName, svcNamespace, domain string) *ingressAnnotatorHandler {
 	ingressAnnotator := utilsk8s.NewIngressAnnotator(client, svcName, svcNamespace, domain)

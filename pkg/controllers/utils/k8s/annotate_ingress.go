@@ -30,9 +30,12 @@ func NewIngressAnnotator(k8s client.Client, svcName, svcNamespace, domain string
 		k8s:          k8s,
 		svcName:      svcName,
 		svcNamespace: svcNamespace,
+		domain:       domain,
 	}
 	return annotator
 }
+
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 
 func (i *IngressAnnotator) Annotate(ctx context.Context, ingress *v1beta1.Ingress) (*v1beta1.Ingress, bool, error) {
 	groups, found := ingress.ObjectMeta.Annotations[groupsAnnotation]
