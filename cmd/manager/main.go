@@ -73,8 +73,8 @@ func main() {
 	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 	flag.BoolVar(&enableClusterResourceQuota, "enable-cluster-resource-quota", true, "Enable/Disable cluster resource quota")
 
-	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "oauth2-proxy", "Name of oauth2-proxy service")
-	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "ingress-nginx", "Name of oauth2-proxy service namespace")
+	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "", "Name of oauth2-proxy service")
+	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "", "Name of oauth2-proxy service namespace")
 	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
 	flag.Parse()
@@ -113,9 +113,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := ingress.Add(mgr, annotationInterval, oauth2ProxySvcName, oauth2ProxySvcNamespace, domain); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "IngressAnnotator")
-		os.Exit(1)
+	if oauth2ProxySvcName != "" && oauth2ProxySvcNamespace != "" {
+		if err := ingress.Add(mgr, annotationInterval, oauth2ProxySvcName, oauth2ProxySvcNamespace, domain); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "IngressAnnotator")
+			os.Exit(1)
+		}
 	}
 
 	// Setup webhooks
@@ -126,6 +128,7 @@ func main() {
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
+	hookServer.Register("/mutate-v1-ingress", &webhook.Admission{Handler: platformv1.IngressAnnotatorMutateWebhook(mgr.GetClient(), oauth2ProxySvcName, oauth2ProxySvcNamespace, domain)})
 	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 
