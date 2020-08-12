@@ -180,6 +180,24 @@ webhooks:
     service:
       name: platform-webhook-service
       namespace: platform-system
+      path: /mutate-v1-ingress
+  failurePolicy: Ignore
+  name: annotate-ingress-v1.platform.flanksource.com
+  rules:
+  - apiGroups:
+    - extensions
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ingresses
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: platform-webhook-service
+      namespace: platform-system
       path: /mutate-v1-pod
   failurePolicy: Ignore
   name: annotate-pods-v1.platform.flanksource.com
@@ -358,6 +376,23 @@ rules:
   - list
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - platform.flanksource.com
   resources:
   - clusterresourcequotas
@@ -440,7 +475,7 @@ spec:
         - --annotations=foo.flanksource.com/bar,foo.flanksource.com/baz
         command:
         - /manager
-        image: quay.io/toni0/platform-operator:add-pods-annotations
+        image: docker.io/flanksource/platform-operator:latest
         imagePullPolicy: Always
         name: manager
         ports:

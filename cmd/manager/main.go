@@ -28,6 +28,7 @@ import (
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
 	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
+	"github.com/flanksource/platform-operator/pkg/controllers/ingress"
 	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -57,6 +58,9 @@ func main() {
 	var cleanupInterval, annotationInterval time.Duration
 	var annotations string
 	var enableClusterResourceQuota bool
+	var oauth2ProxySvcName string
+	var oauth2ProxySvcNamespace string
+	var domain string
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
@@ -68,6 +72,10 @@ func main() {
 
 	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 	flag.BoolVar(&enableClusterResourceQuota, "enable-cluster-resource-quota", true, "Enable/Disable cluster resource quota")
+
+	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "", "Name of oauth2-proxy service")
+	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "", "Name of oauth2-proxy service namespace")
+	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
 	flag.Parse()
 
@@ -105,6 +113,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if oauth2ProxySvcName != "" && oauth2ProxySvcNamespace != "" {
+		if err := ingress.Add(mgr, annotationInterval, oauth2ProxySvcName, oauth2ProxySvcNamespace, domain); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "IngressAnnotator")
+			os.Exit(1)
+		}
+	}
+
 	// Setup webhooks
 	setupLog.Info("setting up webhook server")
 	hookServer := mgr.GetWebhookServer()
@@ -113,6 +128,7 @@ func main() {
 
 	setupLog.Info("registering webhooks to the webhook server")
 	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
+	hookServer.Register("/mutate-v1-ingress", &webhook.Admission{Handler: platformv1.IngressAnnotatorMutateWebhook(mgr.GetClient(), oauth2ProxySvcName, oauth2ProxySvcNamespace, domain)})
 	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 
