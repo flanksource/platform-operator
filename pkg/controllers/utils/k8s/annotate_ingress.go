@@ -55,7 +55,6 @@ func (i *IngressAnnotator) Annotate(ctx context.Context, ingress *v1beta1.Ingres
 	}
 
 	newIngress := ingress.DeepCopy()
-	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/force-ssl-redirect"] = "true"
 	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-url"] = fmt.Sprintf("http://%s:4180/oauth2/auth", svcIP)
 	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-signin"] = fmt.Sprintf("https://oauth2.%s/oauth2/start?rd=https://$host$request_uri$is_args$args", i.domain)
 	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-response-headers"] = "x-auth-request-user, x-auth-request-email, authorization"
