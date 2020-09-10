@@ -15,6 +15,8 @@ import (
 )
 
 const groupsAnnotation = "platform.flanksource.com/restrict-to-groups"
+const extraSnippetAnnotation = "platform.flanksource.com/extra-configuration-snippet"
+const passAuthHeadersAnnotation = "platform.flanksource.com/pass-auth-headers"
 
 var log = logf.Log.WithName("ingress-annotator")
 
@@ -54,30 +56,33 @@ func (i *IngressAnnotator) Annotate(ctx context.Context, ingress *v1beta1.Ingres
 		return nil, false, nil
 	}
 
+	passHeadersStr, found := ingress.ObjectMeta.Annotations[passAuthHeadersAnnotation]
+	if !found {
+		passHeadersStr = "true"
+	}
+	passHeaders := passHeadersStr == "true"
+
+	extraSnippet, found := ingress.ObjectMeta.Annotations[extraSnippetAnnotation]
+	if !found {
+		extraSnippet = ""
+	}
+
 	newIngress := ingress.DeepCopy()
 	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-url"] = fmt.Sprintf("http://%s:4180/oauth2/auth", svcIP)
 	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-signin"] = fmt.Sprintf("https://oauth2.%s/oauth2/start?rd=https://$host$request_uri$is_args$args", i.domain)
-	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-response-headers"] = "x-auth-request-user, x-auth-request-email, authorization"
-	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = i.configurationSnippet(groups)
+	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = i.configurationSnippet(groups, passHeaders, extraSnippet)
 
 	equal := reflect.DeepEqual(ingress.ObjectMeta.Annotations, newIngress.ObjectMeta.Annotations)
 
 	return newIngress, !equal, nil
 }
 
-func (i *IngressAnnotator) CS(groupsList string) string {
-	return i.configurationSnippet(groupsList)
-}
-
-func (i *IngressAnnotator) configurationSnippet(groupsList string) string {
+func (i *IngressAnnotator) configurationSnippet(groupsList string, passHeaders bool, extraSnippet string) string {
 	groups := strings.Split(groupsList, ";")
 	snippet := `
 auth_request_set $authHeader0 $upstream_http_x_auth_request_user;
-proxy_set_header 'x-auth-request-user' $authHeader0;
 auth_request_set $authHeader1 $upstream_http_x_auth_request_email;
-proxy_set_header 'x-auth-request-email' $authHeader1;
 auth_request_set $authHeader2 $upstream_http_authorization;
-proxy_set_header 'authorization' $authHeader2;
 
 access_by_lua_block {
 	local authorizedGroups = { %s }
@@ -86,11 +91,25 @@ access_by_lua_block {
 	oauth2GroupAccess:verify_authorization(ngx.var.authHeader2, authorizedGroups)
 }
 `
+
+	passHeadersSnippet := `
+proxy_set_header 'x-auth-request-user' $authHeader0;
+proxy_set_header 'x-auth-request-email' $authHeader1;
+proxy_set_header 'authorization' $authHeader2;
+`
 	escapedGroups := make([]string, len(groups))
 	for i := range groups {
 		escapedGroups[i] = "\"" + groups[i] + "\""
 	}
 	groupsTemplate := strings.Join(escapedGroups, ", ")
 	result := fmt.Sprintf(snippet, groupsTemplate)
+
+	if passHeaders {
+		result = result + "\n" + passHeadersSnippet
+	}
+
+	if extraSnippet != "" {
+		result = result + "\n" + extraSnippet
+	}
 	return result
 }
