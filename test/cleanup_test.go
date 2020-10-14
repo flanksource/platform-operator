@@ -27,7 +27,7 @@ var _ = Describe("Cleanup Controller", func() {
 		namespace1 = &v1.Namespace{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("ns-with-annotations-%s", utils.RandomString(3)),
+				Name: fmt.Sprintf("namespace-to-delete-%s", utils.RandomString(3)),
 				Labels: map[string]string{
 					"auto-delete": "5s",
 				},
@@ -36,7 +36,7 @@ var _ = Describe("Cleanup Controller", func() {
 		namespace2 = &v1.Namespace{
 			TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("ns-without-annotations-%s", utils.RandomString(3)),
+				Name: fmt.Sprintf("namespace-to-not-delete-%s", utils.RandomString(3)),
 			},
 		}
 		err := k8sClient.Create(context.Background(), namespace1)

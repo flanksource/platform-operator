@@ -31,7 +31,10 @@ all: manager
 
 # Run tests
 test: fmt vet
-	go test ./... -coverprofile cover.out
+	go test ./... -coverprofile cover.out -v
+
+e2e: fmt vet
+	TEST_E2E=true go test ./... -coverprofile cover.out -v
 
 # Build manager binary
 manager: fmt vet
@@ -52,7 +55,7 @@ generate: controller-gen
 	# Generate manifests e.g. CRD, RBAC etc.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager paths="./pkg/..." output:crd:artifacts:config=config/crds/bases output:rbac:artifacts:config=config/operator/rbac
 	# set image name and tag
-	# Generate an all-in-one version including the operator manifests 
+	# Generate an all-in-one version including the operator manifests
 	kubectl kustomize config/operator/default > config/deploy/manifests.yaml
 
 # Run go fmt against code

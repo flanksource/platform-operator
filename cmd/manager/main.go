@@ -56,11 +56,13 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var cleanupInterval, annotationInterval time.Duration
-	var annotations string
 	var enableClusterResourceQuota bool
 	var oauth2ProxySvcName string
 	var oauth2ProxySvcNamespace string
 	var domain string
+	var registryWhitelist string
+	var annotations string
+	cfg := platformv1.PodMutaterConfig{}
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 
@@ -75,9 +77,15 @@ func main() {
 
 	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "", "Name of oauth2-proxy service")
 	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "", "Name of oauth2-proxy service namespace")
+	flag.StringVar(&cfg.DefaultRegistryPrefix, "default-registry-prefix", "", "A default registry prefix path to apply to all pods")
+	flag.StringVar(&cfg.DefaultImagePullSecret, "defailt-image-pull-secret", "", "Default dmage pull secret to apply to all pods")
+	flag.StringVar(&registryWhitelist, "registry-whitelist", "", "A list of image prefixes to ignore")
 	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
 	flag.Parse()
+
+	cfg.Annotations = strings.Split(annotations, ",")
+	cfg.RegistryWhitelist = strings.Split(registryWhitelist, ",")
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
@@ -108,7 +116,7 @@ func main() {
 		}
 	}
 
-	if err := podannotator.Add(mgr, annotationInterval, strings.Split(annotations, ",")); err != nil {
+	if err := podannotator.Add(mgr, annotationInterval, cfg); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
 		os.Exit(1)
 	}
@@ -127,7 +135,7 @@ func main() {
 	mtx := &sync.Mutex{}
 
 	setupLog.Info("registering webhooks to the webhook server")
-	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), strings.Split(annotations, ","))})
+	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), cfg)})
 	hookServer.Register("/mutate-v1-ingress", &webhook.Admission{Handler: platformv1.IngressAnnotatorMutateWebhook(mgr.GetClient(), oauth2ProxySvcName, oauth2ProxySvcNamespace, domain)})
 	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
