@@ -78,7 +78,7 @@ func main() {
 	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "", "Name of oauth2-proxy service")
 	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "", "Name of oauth2-proxy service namespace")
 	flag.StringVar(&cfg.DefaultRegistryPrefix, "default-registry-prefix", "", "A default registry prefix path to apply to all pods")
-	flag.StringVar(&cfg.DefaultImagePullSecret, "defailt-image-pull-secret", "", "Default dmage pull secret to apply to all pods")
+	flag.StringVar(&cfg.DefaultImagePullSecret, "default-image-pull-secret", "", "Default dmage pull secret to apply to all pods")
 	flag.StringVar(&registryWhitelist, "registry-whitelist", "", "A list of image prefixes to ignore")
 	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
