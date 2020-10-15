@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -11,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -22,17 +22,15 @@ type NamespaceReconciler struct {
 
 	// interval is the time after which the controller requeue the reconcile key
 	interval time.Duration
-	// list of whitelisted annotations
-	annotations []string
+	cfg      platformv1.PodMutaterConfig
 }
 
-func newNamespaceReconciler(mgr manager.Manager, interval time.Duration, annotations []string) reconcile.Reconciler {
+func newNamespaceReconciler(mgr manager.Manager, interval time.Duration, cfg platformv1.PodMutaterConfig) reconcile.Reconciler {
 	return &NamespaceReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-
-		interval:    interval,
-		annotations: annotations,
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		interval: interval,
+		cfg:      cfg,
 	}
 }
 
@@ -42,19 +40,11 @@ func addNamespaceReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	if err := c.Watch(
-		&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{},
-		predicate.Funcs{CreateFunc: onCreate, UpdateFunc: onUpdate},
-	); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Watch(&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{})
 }
 
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update
-
 func (r *NamespaceReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
 
@@ -71,7 +61,7 @@ func (r *NamespaceReconciler) Reconcile(request reconcile.Request) (reconcile.Re
 		return reconcile.Result{}, err
 	}
 
-	changedPods := updatePodAnnotations(ns, r.annotations, podList.Items...)
+	changedPods := updatePods(ns, r.cfg, podList.Items...)
 
 	for _, pod := range changedPods {
 		if err := r.Client.Update(ctx, &pod); err != nil {
@@ -80,6 +70,6 @@ func (r *NamespaceReconciler) Reconcile(request reconcile.Request) (reconcile.Re
 		}
 	}
 
-	log.V(1).Info("Requeue reconciliation", "interval", r.interval)
+	log.V(1).Info("Requeue reconciliation", "interval", r.interval, "namespace", ns.Name)
 	return reconcile.Result{RequeueAfter: r.interval}, nil
 }

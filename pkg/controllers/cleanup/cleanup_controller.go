@@ -52,9 +52,8 @@ func Add(mgr manager.Manager, interval time.Duration) error {
 
 func newReconciler(mgr manager.Manager, interval time.Duration) reconcile.Reconciler {
 	return &ReconcileCleanup{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
 		interval: interval,
 	}
 }
@@ -65,14 +64,10 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	if err := c.Watch(
+	return c.Watch(
 		&source.Kind{Type: &corev1.Namespace{}}, &handler.EnqueueRequestForObject{},
 		predicate.Funcs{CreateFunc: onCreate, UpdateFunc: onUpdate},
-	); err != nil {
-		return err
-	}
-
-	return nil
+	)
 }
 
 var _ reconcile.Reconciler = &ReconcileCleanup{}
@@ -103,7 +98,6 @@ func parseDuration(expiry string) (*time.Duration, error) {
 
 func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	ctx := context.Background()
-
 	namespace := corev1.Namespace{}
 	if err := r.Get(ctx, request.NamespacedName, &namespace); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -119,6 +113,9 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 	}
 
 	expiry := namespace.Labels[cleanupLabel]
+	if expiry == "" {
+		return reconcile.Result{}, nil
+	}
 	duration, err := parseDuration(expiry)
 	if err != nil {
 		log.Error(err, "Invalid duration for namespace", "namespace", namespace.Name, "expiry", expiry)
@@ -127,11 +124,11 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	expiresOn := namespace.GetCreationTimestamp().Add(*duration)
 	if expiresOn.Before(time.Now()) {
-		log.V(1).Info("Deleting namespace", "namespace", namespace.Name)
+		log.V(1).Info("Deleting namespace", "namespace", namespace.Name, "expiry", expiry)
 
 		if err := r.Delete(ctx, &namespace); err != nil {
 			log.Error(err, "Failed to delete namespace", "namespace", namespace.Name)
-			return reconcile.Result{}, err
+			return reconcile.Result{Requeue: true}, err
 		}
 	}
 
@@ -143,7 +140,6 @@ func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Resul
 // objects are queued only in case the label exists
 func onCreate(e event.CreateEvent) bool {
 	namespace := e.Object.(*corev1.Namespace)
-
 	labels := namespace.GetLabels()
 	_, isSet := labels[cleanupLabel]
 	return isSet
@@ -151,7 +147,6 @@ func onCreate(e event.CreateEvent) bool {
 
 func onUpdate(e event.UpdateEvent) bool {
 	namespace := e.ObjectNew.(*corev1.Namespace)
-
 	labels := namespace.GetLabels()
 	_, isSet := labels[cleanupLabel]
 	return isSet

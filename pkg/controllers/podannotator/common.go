@@ -1,13 +1,11 @@
 package podannotator
 
-import v1 "k8s.io/api/core/v1"
+import (
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
+	v1 "k8s.io/api/core/v1"
+)
 
-func updatePodAnnotations(ns v1.Namespace, annotations []string, pods ...v1.Pod) []v1.Pod {
-	annotationsMap := map[string]bool{}
-	for _, a := range annotations {
-		annotationsMap[a] = true
-	}
-
+func updatePods(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pods ...v1.Pod) []v1.Pod {
 	changedPods := []v1.Pod{}
 
 	if ns.Annotations == nil {
@@ -22,7 +20,7 @@ func updatePodAnnotations(ns v1.Namespace, annotations []string, pods ...v1.Pod)
 		podChanged := false
 
 		for k, v := range ns.Annotations {
-			if _, f := annotationsMap[k]; f { // if annotation is whitelisted
+			if _, f := cfg.AnnotationsMap[k]; f { // if annotation is whitelisted
 				if _, podHasAnnotation := pod.Annotations[k]; !podHasAnnotation { // if pod already has annotation, don't inherit
 					pod.Annotations[k] = v
 					podChanged = true

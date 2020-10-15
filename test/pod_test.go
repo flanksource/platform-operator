@@ -13,7 +13,25 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var _ = Describe("PodAnnotator Controller", func() {
+func createAndFetchPod(namespace string, pod v1.Pod) v1.Pod {
+	pod.TypeMeta = metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"}
+	pod.ObjectMeta = metav1.ObjectMeta{
+		Name:      fmt.Sprintf("pod-%s", utils.RandomString(6)),
+		Namespace: namespace,
+	}
+	err := k8sClient.Create(context.Background(), &pod)
+	Expect(err).ToNot(HaveOccurred())
+
+	time.Sleep(time.Second * 5)
+
+	key := types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}
+	fetched := v1.Pod{}
+	err = k8sClient.Get(context.Background(), key, &fetched)
+	Expect(err).ToNot(HaveOccurred())
+	return fetched
+}
+
+var _ = Describe("Pod Controller", func() {
 
 	const timeout = time.Second * 30
 	const interval = time.Second * 1
@@ -54,6 +72,39 @@ var _ = Describe("PodAnnotator Controller", func() {
 		k8sClient.Delete(context.Background(), namespace2)
 	})
 
+	Context("A pod with with a whitelisted image url", func() {
+		It("Should leave the image path the same", func() {
+			pod := createAndFetchPod(namespace2.Name, v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  "busybox",
+							Image: "whitelist/busybox:latest",
+						},
+					},
+				},
+			})
+			Expect(pod.Spec.Containers[0].Image).To(Equal("whitelist/busybox:latest"))
+
+		})
+	})
+
+	XContext("A pod with with a non-whitelisted image url", func() {
+		It("Should prefix the image path ", func() {
+			pod := createAndFetchPod(namespace2.Name, v1.Pod{
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  "busybox",
+							Image: "busybox:latest",
+						},
+					},
+				},
+			})
+			Expect(pod.Spec.Containers[0].Image).To(Equal("registry.cluster.local/busybox:latest"))
+		})
+	})
+
 	Context("Namespace with annotations", func() {
 		It("Should add annotation to pods without annotation", func() {
 			pod := &v1.Pod{
@@ -75,14 +126,11 @@ var _ = Describe("PodAnnotator Controller", func() {
 			err := k8sClient.Create(context.Background(), pod)
 			Expect(err).ToNot(HaveOccurred())
 
-			time.Sleep(time.Second * 5)
-
 			key := types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}
 			fetched := &v1.Pod{}
 			Eventually(func() string {
 				err := k8sClient.Get(context.Background(), key, fetched)
 				if err != nil {
-					fmt.Printf("Error fetching pod: %v", err)
 					return ""
 				}
 				if fetched.Annotations == nil {
