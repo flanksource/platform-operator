@@ -49,10 +49,10 @@ func NewPodAnnotatorHandler(client client.Client, cfg PodMutaterConfig) *podAnno
 func (a *podAnnotatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	pod := &corev1.Pod{}
 	err := a.decoder.Decode(req, pod)
-	a.Log.Info("Mutating", "pod", pod)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
+	a.Log.Info("Mutating", "image", pod.Spec.Containers[0].Image)
 
 	namespace := corev1.Namespace{}
 	if err := a.Client.Get(ctx, types.NamespacedName{Name: req.Namespace}, &namespace); err != nil {
@@ -75,42 +75,52 @@ func (a *podAnnotatorHandler) Handle(ctx context.Context, req admission.Request)
 		}
 	}
 
-containers:
+	var _initContainers, _containers []corev1.Container
 	for _, container := range pod.Spec.Containers {
+		whitelisted := false
 		for _, reg := range a.RegistryWhitelist {
 			if strings.HasPrefix(container.Image, reg) {
-				continue containers
+				whitelisted = true
+				break
 			}
 		}
-		to := fmt.Sprintf("%s/%s", a.DefaultRegistryPrefix, container.Image)
-		a.Log.V(2).Info("Updating image", "from", container.Image, "to", to)
-		container.Image = to
+		if !whitelisted {
+			to := fmt.Sprintf("%s/%s", a.DefaultRegistryPrefix, container.Image)
+			a.Log.Info("Updating image", "from", container.Image, "to", to)
+			container.Image = to
+		}
+		_containers = append(_containers, container)
 	}
-
-initContainers:
+	pod.Spec.Containers = _containers
 	for _, container := range pod.Spec.InitContainers {
+		whitelisted := false
 		for _, reg := range a.RegistryWhitelist {
 			if strings.HasPrefix(container.Image, reg) {
-				continue initContainers
+				whitelisted = true
+				break
 			}
 		}
-		to := fmt.Sprintf("%s/%s", a.DefaultRegistryPrefix, container.Image)
-		a.Log.V(2).Info("Updating image", "from", container.Image, "to", to)
-		container.Image = to
-		container.Image = fmt.Sprintf("%s/%s", a.DefaultRegistryPrefix, container.Image)
+		if !whitelisted {
+			to := fmt.Sprintf("%s/%s", a.DefaultRegistryPrefix, container.Image)
+			a.Log.Info("Updating image", "from", container.Image, "to", to)
+			container.Image = to
+		}
+		_initContainers = append(_initContainers, container)
 	}
+	pod.Spec.InitContainers = _initContainers
 
 	if len(pod.Spec.ImagePullSecrets) == 0 && a.DefaultImagePullSecret != "" {
-		a.Log.V(2).Info("Injecting image pull secret", "name", a.DefaultImagePullSecret)
+		a.Log.Info("Injecting image pull secret", "name", a.DefaultImagePullSecret)
 		pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{{
 			Name: a.DefaultImagePullSecret,
 		}}
 	}
 	marshaledPod, err := json.Marshal(pod)
 	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
+		return admission.Errored(http.StatusInternalServerError, errors.Wrapf(err, "Failed to marshal pod"))
 	}
-	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
+	response := admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
+	return response
 }
 
 func (a *podAnnotatorHandler) InjectDecoder(d *admission.Decoder) error {

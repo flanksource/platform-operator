@@ -40,6 +40,10 @@ e2e: fmt vet
 manager: fmt vet
 	go build -o bin/manager cmd/manager/main.go
 
+# Build manager binary
+linux:
+	GOOS=linux go build -o bin/manager cmd/manager/main.go
+
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet
 	go run cmd/manager/main.go
