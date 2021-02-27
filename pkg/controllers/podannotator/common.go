@@ -19,18 +19,7 @@ func updatePods(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pods ...v1.Pod
 			pod.Annotations = map[string]string{}
 		}
 
-		podChanged := false
-
-		for k1, v1 := range ns.Annotations {
-			for k2, v2 := range cfg.AnnotationsMap {
-				if v2 && strings.HasPrefix(k1, k2) { // prefix matching
-					if _, podHasAnnotation := pod.Annotations[k1]; !podHasAnnotation { // if pod already has annotation, don't inherit
-						pod.Annotations[k1] = v1
-						podChanged = true
-					}
-				}
-			}
-		}
+		podChanged := checkUpdatePod(ns, cfg, pod)
 
 		if podChanged {
 			changedPods = append(changedPods, pod)
@@ -38,4 +27,20 @@ func updatePods(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pods ...v1.Pod
 	}
 
 	return changedPods
+}
+
+func checkUpdatePod(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pod v1.Pod) bool {
+	podChanged := false
+
+	for nsAnnotationKey, nsAnnotationVal := range ns.Annotations {
+		for whitelistAnnotation, whitelistBool := range cfg.AnnotationsMap {
+			if whitelistBool && strings.HasPrefix(nsAnnotationKey, whitelistAnnotation) { // prefix matching
+				if _, podHasAnnotation := pod.Annotations[nsAnnotationKey]; !podHasAnnotation { // if pod already has annotation, don't inherit
+					pod.Annotations[nsAnnotationKey] = nsAnnotationVal
+					podChanged = true
+				}
+			}
+		}
+	}
+	return podChanged
 }
