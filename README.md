@@ -63,7 +63,7 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-		- image: busybox:latest
+  - image: busybox:latest
 ```
 
 It will get mutated to:
@@ -73,7 +73,7 @@ apiVersion: v1
 kind: Pod
 spec:
   containers:
-		- image: registry.corp/busybox:latest
+  - image: registry.corp/busybox:latest
 ```
 
 To prevent some images from being prefixed use `--registry-whitelist` e.g.  `--registry-whitelist=k8s.gcr.io`
@@ -130,7 +130,7 @@ domain: ACMP.corp
 ldap:
 	....
 dex:
-	version: v2.27.0
+  version: v2.27.0
 oauth2Proxy:
   version: v6.1.1
 platformOperator:
