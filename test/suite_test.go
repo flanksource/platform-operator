@@ -25,6 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -61,7 +62,7 @@ func TestAPIs(t *testing.T) {
 
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"Controller Suite",
-		[]Reporter{envtest.NewlineReporter{}})
+		[]Reporter{printer.NewlineReporter{}})
 }
 
 func waitFor(host string) {
@@ -84,7 +85,7 @@ func registerWebhook(manager ctrl.Manager, name string, webhook *admission.Webho
 	_, err := ctrl.CreateOrUpdate(context.TODO(), manager.GetClient(), wh, func() error {
 		failPolicy := admissionregistrationv1beta1.Fail
 		caBundle, _ := ioutil.ReadFile("tls.crt")
-		urlStr := fmt.Sprintf("https://127.0.0.1:%d/%s", port, name)
+		urlStr := fmt.Sprintf("https://localhost:%d/%s", port, name)
 		wh.Webhooks = []admissionregistrationv1beta1.MutatingWebhook{
 			{
 				Name:          name,
@@ -117,7 +118,7 @@ func registerWebhook(manager ctrl.Manager, name string, webhook *admission.Webho
 }
 
 var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.LoggerTo(os.Stderr, true))
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -136,7 +137,7 @@ var _ = BeforeSuite(func(done Done) {
 	err = platformv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	cert := certs.NewCertificateBuilder("127.0.0.1").Certificate
+	cert := certs.NewCertificateBuilder("localhost").Certificate
 	cert, _ = cert.SignCertificate(cert, 1)
 	ioutil.WriteFile("tls.crt", cert.EncodedCertificate(), 0600)
 	ioutil.WriteFile("tls.key", cert.EncodedPrivateKey(), 0600)
@@ -145,7 +146,7 @@ var _ = BeforeSuite(func(done Done) {
 	// cwd, _ := os.Getwd()
 	k8sManager, err = ctrl.NewManager(cfg, ctrl.Options{
 		LeaderElection:     false,
-		MetricsBindAddress: "0",
+		MetricsBindAddress: "0.0.0.0:10250",
 		CertDir:            "./",
 		Scheme:             scheme.Scheme,
 	})
@@ -174,11 +175,11 @@ var _ = BeforeSuite(func(done Done) {
 		hookServer.CertDir = "."
 		err = k8sManager.Start(ctrl.SetupSignalHandler())
 		Expect(err).ToNot(HaveOccurred())
-		err = registerWebhook(k8sManager, "mutate-pods", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(k8sManager.GetClient(), podConfig)})
-		Expect(err).ToNot(HaveOccurred())
 	}()
 	By("Waiting for webhook server to come up")
-	waitFor(fmt.Sprintf("127.0.0.1:%d", port))
+	waitFor(fmt.Sprintf("localhost:%d", port))
+	err = registerWebhook(k8sManager, "annotate-pods-v1.platform.flanksource.com", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(k8sManager.GetClient(), podConfig)})
+	Expect(err).ToNot(HaveOccurred())
 	By("Webhook server is up")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())

@@ -45,9 +45,7 @@ func addNamespaceReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update
-func (r *NamespaceReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx := context.Background()
-
+func (r *NamespaceReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	ns := corev1.Namespace{}
 	if err := r.Get(ctx, request.NamespacedName, &ns); err != nil {
 		if errors.IsNotFound(err) {

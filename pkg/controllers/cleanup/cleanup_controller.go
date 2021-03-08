@@ -96,8 +96,7 @@ func parseDuration(expiry string) (*time.Duration, error) {
 
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;delete
 
-func (r *ReconcileCleanup) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx := context.Background()
+func (r *ReconcileCleanup) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	namespace := corev1.Namespace{}
 	if err := r.Get(ctx, request.NamespacedName, &namespace); err != nil {
 		if apierrors.IsNotFound(err) {
