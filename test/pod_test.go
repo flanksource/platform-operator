@@ -133,6 +133,9 @@ var _ = Describe("Pod Controller", func() {
 					Name:      fmt.Sprintf("pod-without-annotations-%s", utils.RandomString(6)),
 					Namespace: namespace1.Name,
 				},
+				Spec: v1.PodSpec{
+					Containers: busybox,
+				},
 			}
 
 			err := k8sClient.Create(context.Background(), pod)
