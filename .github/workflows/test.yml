@@ -1,11 +1,9 @@
 name: Test
-on:
-  push:
-  pull_request:
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
       - run: go mod download
-      - run: ./test/e2e.sh
+      - run: make test e2e

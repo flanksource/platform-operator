@@ -19,6 +19,15 @@ func createAndFetchPod(namespace string, pod v1.Pod) v1.Pod {
 		Name:      fmt.Sprintf("pod-%s", utils.RandomString(6)),
 		Namespace: namespace,
 	}
+
+	if len(pod.Spec.Containers) == 0 {
+		pod.Spec.Containers = []v1.Container{
+			{
+				Name:  "busybox",
+				Image: "busybox:latest",
+			},
+		}
+	}
 	err := k8sClient.Create(context.Background(), &pod)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -29,6 +38,13 @@ func createAndFetchPod(namespace string, pod v1.Pod) v1.Pod {
 	err = k8sClient.Get(context.Background(), key, &fetched)
 	Expect(err).ToNot(HaveOccurred())
 	return fetched
+}
+
+var busybox = []v1.Container{
+	{
+		Name:  "busybox",
+		Image: "busybox:latest",
+	},
 }
 
 var _ = Describe("Pod Controller", func() {
@@ -55,7 +71,8 @@ var _ = Describe("Pod Controller", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("ns-without-annotations-%s", utils.RandomString(3)),
 				Annotations: map[string]string{
-					"aaa.example.com/bbb": "42",
+					"tolerations/node-group": "b",
+					"aaa.example.com/bbb":    "42",
 				},
 			},
 		}
@@ -90,17 +107,21 @@ var _ = Describe("Pod Controller", func() {
 
 	Context("A pod with with a non-whitelisted image url", func() {
 		It("Should prefix the image path ", func() {
-			pod := createAndFetchPod(namespace2.Name, v1.Pod{
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:  "busybox",
-							Image: "busybox:latest",
-						},
-					},
-				},
-			})
+			pod := createAndFetchPod(namespace2.Name, v1.Pod{})
 			Expect(pod.Spec.Containers[0].Image).To(Equal("registry.cluster.local/busybox:latest"))
+		})
+	})
+
+	Context("A pod with a namespaced toleration", func() {
+		It("Should have a matching toleration", func() {
+			pod := createAndFetchPod(namespace2.Name, v1.Pod{})
+			if len(pod.Spec.Tolerations) == 0 {
+				Fail("no toleration not found")
+			} else {
+				Expect(pod.Spec.Tolerations[0].Key).To(Equal("node-group"))
+				Expect(pod.Spec.Tolerations[0].Value).To(Equal("b"))
+				Expect(pod.Spec.Tolerations[0].Effect).To(Equal(v1.TaintEffectNoSchedule))
+			}
 		})
 	})
 
@@ -111,14 +132,6 @@ var _ = Describe("Pod Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      fmt.Sprintf("pod-without-annotations-%s", utils.RandomString(6)),
 					Namespace: namespace1.Name,
-				},
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
-						{
-							Name:  "busybox",
-							Image: "busybox:latest",
-						},
-					},
 				},
 			}
 

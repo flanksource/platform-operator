@@ -6,4 +6,5 @@ type PodMutaterConfig struct {
 	RegistryWhitelist      []string
 	DefaultRegistryPrefix  string
 	DefaultImagePullSecret string
+	TolerationsPrefix      string
 }

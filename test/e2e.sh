@@ -58,4 +58,4 @@ fetch_kb_tools
 
 setup_envs
 
-go test github.com/flanksource/platform-operator/test
+make test e2e

@@ -33,11 +33,13 @@ all: manager
 test: fmt vet
 	go test ./... -coverprofile cover.out -v
 
-e2e: fmt vet
-	TEST_E2E=true go test ./... -coverprofile cover.out -v
+e2e:
+	TEST_E2E=true go test ./test/... -coverprofile cover.out -v  -ginkgo.v
 
 # Build manager binary
-manager: fmt vet
+manager: fmt vet build
+
+build:
 	go build -o bin/manager cmd/manager/main.go
 
 # Build manager binary

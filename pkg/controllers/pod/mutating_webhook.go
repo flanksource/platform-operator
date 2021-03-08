@@ -47,7 +47,6 @@ func (handler *podHandler) Handle(ctx context.Context, req admission.Request) ad
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	handler.Log.Info("Mutating", "image", pod.Spec.Containers[0].Image)
 
 	namespace := corev1.Namespace{}
 	if err := handler.Client.Get(ctx, types.NamespacedName{Name: req.Namespace}, &namespace); err != nil {
@@ -84,8 +83,32 @@ func (handler *podHandler) UpdateContainer(container v1.Container) v1.Container 
 func (handler *podHandler) UpdatePod(namespace v1.Namespace, pod *v1.Pod) *v1.Pod {
 	pod, _ = UpdateAnnotations(namespace, handler.PodMutaterConfig, pod)
 	pod = handler.UpdateSecrets(pod)
+	pod = handler.UpdateTolerations(namespace, pod)
 	pod.Spec.Containers = handler.UpdateContainers(pod.Spec.Containers)
 	pod.Spec.InitContainers = handler.UpdateContainers(pod.Spec.InitContainers)
+	return pod
+}
+
+func (handler *podHandler) UpdateTolerations(namespace v1.Namespace, pod *v1.Pod) *v1.Pod {
+	prefix := handler.PodMutaterConfig.TolerationsPrefix
+	if prefix == "" {
+		return pod
+	}
+
+	tolerations := pod.Spec.Tolerations
+	for k, v := range namespace.GetAnnotations() {
+		if !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		key := strings.Replace(k, prefix+"/", "", 1)
+
+		handler.Log.Info("Adding toleration", "pod", pod.GetName(), key, v)
+		tolerations = append(tolerations, v1.Toleration{
+			Key: key, Value: v,
+			Effect: v1.TaintEffectNoSchedule,
+		})
+	}
+	pod.Spec.Tolerations = tolerations
 	return pod
 }
 
