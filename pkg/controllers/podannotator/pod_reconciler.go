@@ -61,9 +61,8 @@ func addPodReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update;watch
-func (r *PodReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	log.Info("Reconciling", "request", request)
-	ctx := context.Background()
+func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+	log.V(2).Info("Reconciling", "request", request)
 	pod := corev1.Pod{}
 	if err := r.Get(ctx, request.NamespacedName, &pod); err != nil {
 		if errors.IsNotFound(err) {
@@ -71,7 +70,7 @@ func (r *PodReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 		}
 		return reconcile.Result{Requeue: true}, err
 	}
-	log.Info("Reconciling", "namespace", pod.Namespace, "pod", pod.Name)
+	log.V(2).Info("Reconciling", "namespace", pod.Namespace, "pod", pod.Name)
 	namespace := corev1.Namespace{}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: request.Namespace}, &namespace); err != nil {
 
@@ -81,7 +80,7 @@ func (r *PodReconciler) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	podsChanged := updatePods(namespace, r.cfg, pod)
 	if len(podsChanged) == 0 {
-		log.Info("Nothing to update", "namespace", pod.Namespace, "pod", pod.Name)
+		log.V(2).Info("Nothing to update", "namespace", pod.Namespace, "pod", pod.Name)
 	}
 	for _, pod := range podsChanged {
 		if err := r.Client.Update(ctx, &pod); err != nil {

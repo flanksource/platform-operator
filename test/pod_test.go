@@ -32,7 +32,6 @@ func createAndFetchPod(namespace string, pod v1.Pod) v1.Pod {
 }
 
 var _ = Describe("Pod Controller", func() {
-
 	const timeout = time.Second * 30
 	const interval = time.Second * 1
 
@@ -89,7 +88,7 @@ var _ = Describe("Pod Controller", func() {
 		})
 	})
 
-	XContext("A pod with with a non-whitelisted image url", func() {
+	Context("A pod with with a non-whitelisted image url", func() {
 		It("Should prefix the image path ", func() {
 			pod := createAndFetchPod(namespace2.Name, v1.Pod{
 				Spec: v1.PodSpec{

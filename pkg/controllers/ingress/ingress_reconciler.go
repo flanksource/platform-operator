@@ -68,9 +68,7 @@ func addIngressReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=get;list;update;watch
 
-func (r *IngressReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx := context.Background()
-
+func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	ingress := &v1beta1.Ingress{}
 	if err := r.Get(ctx, request.NamespacedName, ingress); err != nil {
 		if errors.IsNotFound(err) {

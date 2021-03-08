@@ -25,8 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilquota "k8s.io/kubernetes/pkg/quota/v1"
-
+	utilquota "k8s.io/apiserver/pkg/quota/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -65,40 +64,34 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	if err := c.Watch(
-		&source.Kind{Type: &corev1.ResourceQuota{}}, &handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(
-				// this function map a ResourceQuota event to a reconcile request for all ClusterResourceQuotas
-				func(object handler.MapObject) []reconcile.Request {
-					client := mgr.GetClient()
+	fn := handler.EnqueueRequestsFromMapFunc(func(object client.Object) []reconcile.Request {
 
-					quotaList := &platformv1.ClusterResourceQuotaList{}
-					if err := client.List(context.Background(), quotaList); err != nil {
-						return nil
-					}
+		// this function map a ResourceQuota event to a reconcile request for all ClusterResourceQuotas
+		client := mgr.GetClient()
 
-					if len(quotaList.Items) == 0 {
-						return nil
-					}
+		quotaList := &platformv1.ClusterResourceQuotaList{}
+		if err := client.List(context.Background(), quotaList); err != nil {
+			return nil
+		}
 
-					var requests []reconcile.Request
-					for _, quota := range quotaList.Items {
-						requests = append(requests, reconcile.Request{
-							NamespacedName: types.NamespacedName{
-								Namespace: quota.GetNamespace(),
-								Name:      quota.GetName(),
-							},
-						})
-					}
+		if len(quotaList.Items) == 0 {
+			return nil
+		}
 
-					return requests
+		var requests []reconcile.Request
+		for _, quota := range quotaList.Items {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: quota.GetNamespace(),
+					Name:      quota.GetName(),
 				},
-			),
-		}); err != nil {
-		return err
-	}
+			})
+		}
 
-	return nil
+		return requests
+	})
+
+	return c.Watch(&source.Kind{Type: &corev1.ResourceQuota{}}, fn)
 }
 
 var _ reconcile.Reconciler = &ReconcileClusterResourceQuota{}
@@ -111,9 +104,7 @@ type ReconcileClusterResourceQuota struct {
 // +kubebuilder:rbac:groups=platform.flanksource.com,resources=clusterresourcequotas,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=platform.flanksource.com,resources=clusterresourcequotas/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
-func (r *ReconcileClusterResourceQuota) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	ctx := context.Background()
-
+func (r *ReconcileClusterResourceQuota) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	quota := &platformv1.ClusterResourceQuota{}
 	if err := r.Get(ctx, request.NamespacedName, quota); err != nil {
 		if apierrors.IsNotFound(err) {

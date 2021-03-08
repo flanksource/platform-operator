@@ -23,8 +23,7 @@ import (
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
-	utilquota "k8s.io/kubernetes/pkg/quota/v1"
-
+	utilquota "k8s.io/apiserver/pkg/quota/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
