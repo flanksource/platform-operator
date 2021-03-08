@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	name = "ingress-annotator-controller"
+	name = "ingress-controller"
 )
 
 var log = logf.Log.WithName(name)

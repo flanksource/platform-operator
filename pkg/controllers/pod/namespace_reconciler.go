@@ -1,4 +1,4 @@
-package podannotator
+package pod
 
 import (
 	"context"
@@ -59,7 +59,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, request reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	changedPods := updatePods(ns, r.cfg, podList.Items...)
+	changedPods := RequiresAnnotationUpdate(ns, r.cfg, podList.Items...)
 
 	for _, pod := range changedPods {
 		if err := r.Client.Update(ctx, &pod); err != nil {
@@ -68,6 +68,5 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, request reconcile.R
 		}
 	}
 
-	log.V(1).Info("Requeue reconciliation", "interval", r.interval, "namespace", ns.Name)
 	return reconcile.Result{RequeueAfter: r.interval}, nil
 }

@@ -13,10 +13,9 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var _ = XDescribe("ClusterResourceQuota Controller", func() {
+var _ = Describe("ClusterResourceQuota Controller", func() {
 
 	const timeout = time.Second * 30
 	const interval = time.Second * 1
@@ -24,28 +23,20 @@ var _ = XDescribe("ClusterResourceQuota Controller", func() {
 	var clusterResourceQuota *platformv1.ClusterResourceQuota
 	var resourceQuotas = []v1.ResourceQuota{}
 	var namespaces = []v1.Namespace{}
-	var log = logf.Log.WithName("ClusterResourceQuota test")
 
 	AfterEach(func() {
 		if clusterResourceQuota != nil {
-			err := k8sClient.Delete(context.Background(), clusterResourceQuota)
-			if err != nil {
-				log.Error(err, "Failed to delete cluster resource quota")
-			}
+			_ = k8sClient.Delete(context.Background(), clusterResourceQuota)
 		}
 		for _, r := range resourceQuotas {
-			if err := k8sClient.Delete(context.Background(), &r); err != nil {
-				log.Error(err, "Failed to delete resource quota", "resourcequota", r.Name)
-			}
+			_ = k8sClient.Delete(context.Background(), &r)
 		}
 		for _, n := range namespaces {
-			if err := k8sClient.Delete(context.Background(), &n); err != nil {
-				log.Error(err, "Failed to delete namespace", "namespace", n.Name)
-			}
+			_ = k8sClient.Delete(context.Background(), &n)
 		}
 	})
 
-	Context("ClusterResourceQuota exists", func() {
+	XContext("ClusterResourceQuota exists", func() {
 		It("allows ResourceQuota creation within limits", func() {
 			n1 := v1.Namespace{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
@@ -64,6 +55,9 @@ var _ = XDescribe("ClusterResourceQuota Controller", func() {
 			crq := platformv1.ClusterResourceQuota{
 				TypeMeta:   metav1.TypeMeta{APIVersion: "platform.flanksource.com/v1", Kind: "ClusterResourceQuota"},
 				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("crq-%s", utils.RandomString(3))},
+				Status: platformv1.ClusterResourceQuotaStatus{
+					Namespaces: platformv1.ResourceQuotasStatusByNamespace{},
+				},
 				Spec: platformv1.ClusterResourceQuotaSpec{
 					Quota: v1.ResourceQuotaSpec{
 						Hard: v1.ResourceList{

@@ -29,7 +29,7 @@ import (
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
 	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
 	"github.com/flanksource/platform-operator/pkg/controllers/ingress"
-	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
+	"github.com/flanksource/platform-operator/pkg/controllers/pod"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -55,13 +55,17 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+
 	var cleanupInterval, annotationInterval time.Duration
 	var enableClusterResourceQuota bool
+	var ingressSSO bool
 	var oauth2ProxySvcName string
 	var oauth2ProxySvcNamespace string
 	var domain string
+
 	var registryWhitelist string
 	var annotations string
+	var podMutator bool
 	cfg := platformv1.PodMutaterConfig{}
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -72,16 +76,20 @@ func main() {
 	flag.DurationVar(&cleanupInterval, "cleanup-interval", 10*time.Minute, "Frequency at which the cleanup controller runs.")
 	flag.DurationVar(&annotationInterval, "annotation-interval", 10*time.Minute, "Frequency at which the annotation controller runs.")
 
-	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
 	flag.BoolVar(&enableClusterResourceQuota, "enable-cluster-resource-quota", true, "Enable/Disable cluster resource quota")
 
+	flag.BoolVar(&ingressSSO, "enable-ingress-sso", false, "Enable ingress mutation hook for restrict-to-groups SSO")
 	flag.StringVar(&oauth2ProxySvcName, "oauth2-proxy-service-name", "", "Name of oauth2-proxy service")
 	flag.StringVar(&oauth2ProxySvcNamespace, "oauth2-proxy-service-namespace", "", "Name of oauth2-proxy service namespace")
-	flag.StringVar(&cfg.DefaultRegistryPrefix, "default-registry-prefix", "", "A default registry prefix path to apply to all pods")
-	flag.StringVar(&cfg.DefaultImagePullSecret, "default-image-pull-secret", "", "Default dmage pull secret to apply to all pods")
-	flag.StringVar(&registryWhitelist, "registry-whitelist", "", "A list of image prefixes to ignore")
 	flag.StringVar(&domain, "domain", "", "Domain used by platform")
 
+	flag.BoolVar(&podMutator, "enable-pod-mutations", true, "Enable pod mutating webhooks")
+
+	flag.StringVar(&annotations, "annotations", "", "Annotations pods inherit from parent namespace")
+	flag.StringVar(&cfg.DefaultRegistryPrefix, "default-registry-prefix", "", "A default registry prefix path to apply to all pods")
+	flag.StringVar(&cfg.DefaultImagePullSecret, "default-image-pull-secret", "", "A default image pull secret to apply to all pods")
+	flag.StringVar(&registryWhitelist, "registry-whitelist", "", "A list of image prefixes to ignore")
+	flag.StringVar(&cfg.TolerationsPrefix, "namespace-tolerations-prefix", "tolerations/", "A prefix for namespace level annotations that should be applied as tolerations on pods")
 	flag.Parse()
 
 	cfg.Annotations = strings.Split(annotations, ",")
@@ -102,7 +110,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO(mazzy89): Make the adding of controllers more dynamic
+	// Setup webhooks
+	setupLog.Info("setting up webhook server")
+	hookServer := mgr.GetWebhookServer()
+
+	mtx := &sync.Mutex{}
 
 	if err := cleanup.Add(mgr, cleanupInterval); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Cleanup")
@@ -114,31 +126,26 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
 			os.Exit(1)
 		}
+		hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", clusterresourcequota.NewClusterResourceQuotaValidatingWebhook(mgr.GetClient(), mtx, enableClusterResourceQuota))
+		hookServer.Register("/validate-resourcequota-v1", clusterresourcequota.NewResourceQuotaValidatingWebhook(mgr.GetClient(), mtx, enableClusterResourceQuota))
+
 	}
 
-	if err := podannotator.Add(mgr, annotationInterval, cfg); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
-		os.Exit(1)
+	if podMutator {
+		if err := pod.Add(mgr, annotationInterval, cfg); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PodAnnotator")
+			os.Exit(1)
+		}
+		hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: pod.NewMutatingWebhook(mgr.GetClient(), cfg)})
 	}
 
-	if oauth2ProxySvcName != "" && oauth2ProxySvcNamespace != "" {
+	if ingressSSO {
 		if err := ingress.Add(mgr, annotationInterval, oauth2ProxySvcName, oauth2ProxySvcNamespace, domain); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "IngressAnnotator")
 			os.Exit(1)
 		}
+		hookServer.Register("/mutate-v1-ingress", &webhook.Admission{Handler: ingress.NewMutatingWebhook(mgr.GetClient(), oauth2ProxySvcName, oauth2ProxySvcNamespace, domain)})
 	}
-
-	// Setup webhooks
-	setupLog.Info("setting up webhook server")
-	hookServer := mgr.GetWebhookServer()
-
-	mtx := &sync.Mutex{}
-
-	setupLog.Info("registering webhooks to the webhook server")
-	hookServer.Register("/mutate-v1-pod", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(mgr.GetClient(), cfg)})
-	hookServer.Register("/mutate-v1-ingress", &webhook.Admission{Handler: platformv1.IngressAnnotatorMutateWebhook(mgr.GetClient(), oauth2ProxySvcName, oauth2ProxySvcNamespace, domain)})
-	hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", platformv1.ClusterResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
-	hookServer.Register("/validate-resourcequota-v1", platformv1.ResourceQuotaValidatingWebhook(mtx, enableClusterResourceQuota))
 
 	// +kubebuilder:scaffold:builder
 

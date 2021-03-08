@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package clusterresourcequota
 
 import (
 	"context"
@@ -22,27 +22,29 @@ import (
 	"net/http"
 	"sync"
 
+	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	corev1 "k8s.io/api/core/v1"
 	utilquota "k8s.io/apiserver/pkg/quota/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var rqLog = logf.Log.WithName("resourcequota-validation")
-
 // +kubebuilder:webhook:path=/validate-resourcequota-v1,mutating=false,failurePolicy=fail,groups="",resources=resourcequotas,verbs=create;update,versions=v1,name=resourcequotas-validation-v1.platform.flanksource.com
-
-func ResourceQuotaValidatingWebhook(mtx *sync.Mutex, validationEnabled bool) *admission.Webhook {
+func NewResourceQuotaValidatingWebhook(client client.Client, mtx *sync.Mutex, validationEnabled bool) *admission.Webhook {
+	decoder, _ := admission.NewDecoder(client.Scheme())
 	return &admission.Webhook{
-		Handler: &validatingResourceQuotaHandler{mtx: mtx, validationEnabled: validationEnabled},
+		Handler: &validatingResourceQuotaHandler{
+			Client:            client,
+			Decoder:           decoder,
+			mtx:               mtx,
+			validationEnabled: validationEnabled},
 	}
 }
 
 type validatingResourceQuotaHandler struct {
-	client            client.Client
-	decoder           *admission.Decoder
+	client.Client
+	*admission.Decoder
 	mtx               *sync.Mutex
 	validationEnabled bool
 }
@@ -55,18 +57,18 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 
 	rq := &corev1.ResourceQuota{}
 
-	if err := v.decoder.Decode(req, rq); err != nil {
+	if err := v.Decode(req, rq); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
 	if !v.validationEnabled {
-		qlog.Info("validate resource quota flag is not enabled. All requests will be declared valid")
+		log.Info("validate resource quota flag is not enabled. All requests will be declared valid")
 		return admission.Allowed("")
 	}
 
 	namespacesList := &corev1.NamespaceList{}
-	if err := v.client.List(ctx, namespacesList); err != nil {
-		qlog.Error(err, "Failed to list namespaces")
+	if err := v.List(ctx, namespacesList); err != nil {
+		log.Error(err, "Failed to list namespaces")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -76,8 +78,8 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 		namespaceName := namespace.Name
 
 		rqList := &corev1.ResourceQuotaList{}
-		if err := v.client.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
-			qlog.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
+		if err := v.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
+			log.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
 			return admission.Errored(http.StatusBadRequest, err)
 		}
 
@@ -95,9 +97,9 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 	// in case in the cluster we define multiple resource quotas
 	// NOTE: in the future we could have cluster resource quotas applied to
 	//       some namespaces
-	quotaList := &ClusterResourceQuotaList{}
-	if err := v.client.List(ctx, quotaList); err != nil {
-		rqLog.Error(err, "Failed to list cluster resource quotas")
+	quotaList := &platformv1.ClusterResourceQuotaList{}
+	if err := v.List(ctx, quotaList); err != nil {
+		log.Error(err, "Failed to list cluster resource quotas")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -110,24 +112,5 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 			return admission.Denied(fmt.Sprintf("resource quota exceeds the cluster resource quota %s in %v", q.Name, rn))
 		}
 	}
-
 	return admission.Allowed("")
-}
-
-// ResourceQuotaValidator implements inject.Client.
-// A client will be automatically injected.
-
-// InjectClient injects the client.
-func (v *validatingResourceQuotaHandler) InjectClient(c client.Client) error {
-	v.client = c
-	return nil
-}
-
-// ResourceQuotaValidator implements admission.DecoderInjector.
-// A decoder will be automatically injected.
-
-// InjectDecoder injects the decoder.
-func (v *validatingResourceQuotaHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
 }

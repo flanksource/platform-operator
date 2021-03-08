@@ -18,11 +18,16 @@ package ingress
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"strings"
 
-	utilsk8s "github.com/flanksource/platform-operator/pkg/controllers/utils/k8s"
+	perrors "github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
+
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -32,21 +37,42 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+const (
+	groupsAnnotation          = "platform.flanksource.com/restrict-to-groups"
+	extraSnippetAnnotation    = "platform.flanksource.com/extra-configuration-snippet"
+	passAuthHeadersAnnotation = "platform.flanksource.com/pass-auth-headers"
+	oauthSnippet              = `
+auth_request_set $authHeader0 $upstream_http_x_auth_request_user;
+auth_request_set $authHeader1 $upstream_http_x_auth_request_email;
+auth_request_set $authHeader2 $upstream_http_authorization;
+
+access_by_lua_block {
+	local authorizedGroups = { %s }
+	local oauth2GroupAccess = require "oauth2_group_access"
+
+	oauth2GroupAccess:verify_authorization(ngx.var.authHeader2, authorizedGroups)
+}
+`
+	passHeadersSnippet = `
+proxy_set_header 'x-auth-request-user' $authHeader0;
+proxy_set_header 'x-auth-request-email' $authHeader1;
+proxy_set_header 'authorization' $authHeader2;
+`
+)
+
 type IngressReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-
-	ingressAnnotator *utilsk8s.IngressAnnotator
+	SvcName      string
+	SvcNamespace string
+	Domain       string
 }
 
 func newIngressReconciler(mgr manager.Manager, svcName, svcNamespace, domain string) reconcile.Reconciler {
-	client := mgr.GetClient()
-	ingressAnnotator := utilsk8s.NewIngressAnnotator(client, svcName, svcNamespace, domain)
-
 	return &IngressReconciler{
-		Client:           client,
-		Scheme:           mgr.GetScheme(),
-		ingressAnnotator: ingressAnnotator,
+		Client:       mgr.GetClient(),
+		SvcName:      svcName,
+		SvcNamespace: svcNamespace,
+		Domain:       domain,
 	}
 }
 
@@ -62,12 +88,10 @@ func addIngressReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 	); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=get;list;update;watch
-
 func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	ingress := &v1beta1.Ingress{}
 	if err := r.Get(ctx, request.NamespacedName, ingress); err != nil {
@@ -77,7 +101,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Req
 		return reconcile.Result{}, err
 	}
 
-	updatedIngress, changed, err := r.ingressAnnotator.Annotate(ctx, ingress)
+	updatedIngress, changed, err := r.Annotate(ctx, ingress)
 	if err != nil || !changed {
 		return reconcile.Result{}, err
 	}
@@ -88,4 +112,63 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Req
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+func (r *IngressReconciler) Annotate(ctx context.Context, ingress *v1beta1.Ingress) (*v1beta1.Ingress, bool, error) {
+	groups, found := ingress.ObjectMeta.Annotations[groupsAnnotation]
+	if !found || groups == "" {
+		return nil, false, nil
+	}
+
+	svc := &v1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: r.SvcName, Namespace: r.SvcNamespace}, svc); err != nil {
+		return nil, false, perrors.Wrapf(err, "failed to list service %s in namespace %s", r.SvcName, r.SvcNamespace)
+	}
+
+	svcIP := svc.Spec.ClusterIP
+	if svcIP == "" {
+		log.Error(nil, "Service does not have cluster IP", "service", r.SvcName, "namespace", r.SvcNamespace)
+		return nil, false, nil
+	}
+
+	passHeadersStr, found := ingress.ObjectMeta.Annotations[passAuthHeadersAnnotation]
+	if !found {
+		passHeadersStr = "true"
+	}
+	passHeaders := passHeadersStr == "true"
+
+	extraSnippet, found := ingress.ObjectMeta.Annotations[extraSnippetAnnotation]
+	if !found {
+		extraSnippet = ""
+	}
+
+	newIngress := ingress.DeepCopy()
+	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-url"] = fmt.Sprintf("http://%s:4180/oauth2/auth", svcIP)
+	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/auth-signin"] = fmt.Sprintf("https://oauth2.%s/oauth2/start?rd=https://$host$request_uri$is_args$args", r.Domain)
+	newIngress.ObjectMeta.Annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = configurationSnippet(groups, passHeaders, extraSnippet)
+
+	equal := reflect.DeepEqual(ingress.ObjectMeta.Annotations, newIngress.ObjectMeta.Annotations)
+
+	return newIngress, !equal, nil
+}
+
+func configurationSnippet(groupsList string, passHeaders bool, extraSnippet string) string {
+	groups := strings.Split(groupsList, ";")
+
+	escapedGroups := make([]string, len(groups))
+	for i := range groups {
+		escapedGroups[i] = "\"" + groups[i] + "\""
+	}
+	groupsTemplate := strings.Join(escapedGroups, ", ")
+	result := fmt.Sprintf(oauthSnippet, groupsTemplate)
+
+	if passHeaders {
+		result = result + "\n" + passHeadersSnippet
+	}
+
+	if extraSnippet != "" {
+		result = result + "\n" + extraSnippet
+	}
+	return result
 }

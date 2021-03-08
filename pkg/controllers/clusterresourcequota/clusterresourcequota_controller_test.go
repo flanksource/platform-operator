@@ -96,7 +96,7 @@ func TestReconcileClusterResourceQuota_doReconcile(t *testing.T) {
 				},
 			}
 
-			result, err := r.Reconcile(request)
+			result, err := r.Reconcile(context.Background(), request)
 			if err != nil {
 				t.Error(err)
 			}
