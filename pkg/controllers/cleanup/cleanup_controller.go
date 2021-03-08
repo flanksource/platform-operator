@@ -131,7 +131,7 @@ func (r *ReconcileCleanup) Reconcile(ctx context.Context, request reconcile.Requ
 		}
 	}
 
-	log.V(1).Info("Requeue reconciliation", "interval", r.interval)
+	log.V(2).Info("Requeue reconciliation", "interval", r.interval)
 	return reconcile.Result{RequeueAfter: r.interval}, nil
 }
 

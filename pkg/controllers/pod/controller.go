@@ -1,4 +1,4 @@
-package podannotator
+package pod
 
 import (
 	"time"
@@ -17,7 +17,7 @@ const (
 var log = logf.Log.WithName(name)
 
 func Add(mgr manager.Manager, interval time.Duration, cfg platformv1.PodMutaterConfig) error {
-	if err := addPodReconciler(mgr, newPodReconciler(mgr, cfg)); err != nil {
+	if err := addPodReconciler(mgr, NewPodReconciler(mgr, cfg)); err != nil {
 		return errors.Wrap(err, "failed to add pod reconciler")
 	}
 

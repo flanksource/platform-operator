@@ -58,9 +58,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	if err := c.Watch(
-		&source.Kind{Type: &platformv1.ClusterResourceQuota{}}, &handler.EnqueueRequestForObject{},
-	); err != nil {
+	if err := c.Watch(&source.Kind{Type: &platformv1.ClusterResourceQuota{}}, &handler.EnqueueRequestForObject{}); err != nil {
 		return err
 	}
 

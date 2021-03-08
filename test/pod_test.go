@@ -105,7 +105,7 @@ var _ = Describe("Pod Controller", func() {
 	})
 
 	Context("Namespace with annotations", func() {
-		It("Should add annotation to pods without annotation", func() {
+		It("Should add annotations to pods without annotation", func() {
 			pod := &v1.Pod{
 				TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Pod"},
 				ObjectMeta: metav1.ObjectMeta{

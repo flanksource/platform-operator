@@ -14,13 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podannotator
+package pod
 
 import (
 	"context"
+	"strings"
 
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,10 +37,10 @@ import (
 type PodReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	cfg    platformv1.PodMutaterConfig
+	Config platformv1.PodMutaterConfig
 }
 
-func newPodReconciler(mgr manager.Manager, cfg platformv1.PodMutaterConfig) reconcile.Reconciler {
+func NewPodReconciler(mgr manager.Manager, cfg platformv1.PodMutaterConfig) reconcile.Reconciler {
 	cfg.AnnotationsMap = make(map[string]bool)
 	for _, a := range cfg.Annotations {
 		cfg.AnnotationsMap[a] = true
@@ -46,7 +48,7 @@ func newPodReconciler(mgr manager.Manager, cfg platformv1.PodMutaterConfig) reco
 	return &PodReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		cfg:    cfg,
+		Config: cfg,
 	}
 }
 
@@ -62,7 +64,6 @@ func addPodReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 // +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update;watch
 func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
-	log.V(2).Info("Reconciling", "request", request)
 	pod := corev1.Pod{}
 	if err := r.Get(ctx, request.NamespacedName, &pod); err != nil {
 		if errors.IsNotFound(err) {
@@ -78,7 +79,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request
 		return reconcile.Result{Requeue: true}, err
 	}
 
-	podsChanged := updatePods(namespace, r.cfg, pod)
+	podsChanged := RequiresAnnotationUpdate(namespace, r.Config, pod)
 	if len(podsChanged) == 0 {
 		log.V(2).Info("Nothing to update", "namespace", pod.Namespace, "pod", pod.Name)
 	}
@@ -92,4 +93,49 @@ func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func RequiresAnnotationUpdate(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pods ...v1.Pod) []v1.Pod {
+	changedPods := []v1.Pod{}
+	for _, pod := range pods {
+		if updated, changed := UpdateAnnotations(ns, cfg, &pod); changed {
+			changedPods = append(changedPods, *updated)
+		}
+	}
+	return changedPods
+}
+
+func UpdateAnnotations(ns v1.Namespace, cfg platformv1.PodMutaterConfig, pod *v1.Pod) (*v1.Pod, bool) {
+	if ns.Annotations == nil {
+		ns.Annotations = map[string]string{}
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+
+	changed := false
+	for k, v := range ns.Annotations {
+		if !isWhitelisted(k, cfg) {
+			continue
+		}
+
+		if _, exists := pod.Annotations[k]; exists {
+			// if pod already has annotation, don't inherit
+			continue
+		}
+		pod.Annotations[k] = v
+		changed = true
+	}
+
+	return pod, changed
+}
+
+func isWhitelisted(annotation string, cfg platformv1.PodMutaterConfig) bool {
+	for key := range cfg.AnnotationsMap {
+		if strings.HasPrefix(annotation, key) {
+			return true
+		}
+	}
+	return false
 }

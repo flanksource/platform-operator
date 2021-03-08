@@ -15,7 +15,7 @@ import (
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	"github.com/flanksource/platform-operator/pkg/controllers/cleanup"
 	"github.com/flanksource/platform-operator/pkg/controllers/clusterresourcequota"
-	"github.com/flanksource/platform-operator/pkg/controllers/podannotator"
+	"github.com/flanksource/platform-operator/pkg/controllers/pod"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -164,7 +164,7 @@ var _ = BeforeSuite(func(done Done) {
 		DefaultRegistryPrefix:  "registry.cluster.local",
 		DefaultImagePullSecret: "registry-secret",
 	}
-	err = podannotator.Add(k8sManager, 5*time.Second, podConfig)
+	err = pod.Add(k8sManager, 5*time.Second, podConfig)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
@@ -178,7 +178,7 @@ var _ = BeforeSuite(func(done Done) {
 	}()
 	By("Waiting for webhook server to come up")
 	waitFor(fmt.Sprintf("localhost:%d", port))
-	err = registerWebhook(k8sManager, "annotate-pods-v1.platform.flanksource.com", &webhook.Admission{Handler: platformv1.PodAnnotatorMutateWebhook(k8sManager.GetClient(), podConfig)})
+	err = registerWebhook(k8sManager, "annotate-pods-v1.platform.flanksource.com", &webhook.Admission{Handler: pod.NewMutatingWebhook(k8sManager.GetClient(), podConfig)})
 	Expect(err).ToNot(HaveOccurred())
 	By("Webhook server is up")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
