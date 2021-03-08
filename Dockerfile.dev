@@ -3,5 +3,5 @@
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:latest
 WORKDIR /
-COPY bin/manager .
-ENTRYPOINT ["/manager"]
+COPY bin/platform-operator .
+ENTRYPOINT ["/platform-operator"]
