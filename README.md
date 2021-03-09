@@ -6,7 +6,7 @@ Platform Operator is Kubernetes operator designed to be run in a multi-tenanted 
 
 Applies tolerations to all pods in a namespace, based on annotations on the namespace
 
-e.g. using`--enable-pod-mutations=true --namespace-tolerations-prefix=tolerations`
+e.g. using`--enable-pod-mutations=true --namespace-tolerations-annotation=tolerations`
 
 ```yaml
 apiVersion: v1
@@ -14,7 +14,7 @@ kind: Namespace
 metadata:
   name: dedicate-to-node-group-b
   annotations:
-    tolerations/node-group: b
+    tolerations: node.kubernetes.io/group=instrumented
 ```
 
 Will then result in all pods created in that namespace receiving a toleration of:
@@ -24,8 +24,8 @@ apiVersion: v1
 kind: Pod
 spec:
    tolerations:
-     key: node-group
-     value: b
+     key: node.kubernetes.io/group
+     value: instrumented
      effect: NoSchedule
 ```
 
@@ -54,7 +54,7 @@ metadata:
 
 ### Registry Defaults
 
-e.g. with `--enable-pod-mutations=true --default-registry-prefix==registry.corp`
+e.g. with `--enable-pod-mutations=true --default-registry-prefix=registry.corp`
 
 When creating a pod with a `busybox:latest`  such as:
 

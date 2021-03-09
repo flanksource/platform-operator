@@ -58,4 +58,4 @@ fetch_kb_tools
 
 setup_envs
 
-make test e2e
+make test

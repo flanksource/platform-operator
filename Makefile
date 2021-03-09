@@ -29,8 +29,10 @@ endif
 
 all: manager
 
+test: unit e2e
+
 # Run tests
-test: fmt vet
+unit: fmt vet
 	go test ./... -coverprofile cover.out -v
 
 e2e:

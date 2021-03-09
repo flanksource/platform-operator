@@ -93,6 +93,9 @@ func (handler *podHandler) UpdateTolerations(namespace v1.Namespace, pod *v1.Pod
 	tolerations := pod.Spec.Tolerations
 	tolerationsValue := namespace.GetAnnotations()[handler.PodMutaterConfig.TolerationsAnnotation]
 	for _, toleration := range strings.Split(tolerationsValue, ";") {
+		if toleration == "" {
+			continue
+		}
 		key := strings.Split(toleration, "=")[0]
 		value := strings.Split(toleration, "=")[1]
 		value = strings.Split(value, ":")[0]

@@ -112,7 +112,7 @@ var _ = Describe("Pod Controller", func() {
 		})
 	})
 
-	FContext("A pod with a namespaced toleration", func() {
+	Context("A pod with a namespaced toleration", func() {
 		It("Should have a matching toleration", func() {
 			pod := createAndFetchPod(namespace2.Name, v1.Pod{})
 			if len(pod.Spec.Tolerations) == 0 {
