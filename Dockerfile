@@ -18,8 +18,8 @@ RUN make linux
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM gcr.io/distroless/static:latest
+FROM ubuntu:20.04
 WORKDIR /
-COPY --from=builder /workspace/bin/platform-operator .
-COPY --from=builder /workspace/bin/platform-operator /manager
+COPY --from=builder /workspace/bin/platform-operator /platform-operator
+RUN ln -s /platform-operator /manager
 ENTRYPOINT ["/platform-operator"]
