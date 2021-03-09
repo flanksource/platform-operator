@@ -21,4 +21,5 @@ RUN make linux
 FROM gcr.io/distroless/static:latest
 WORKDIR /
 COPY --from=builder /workspace/bin/platform-operator .
+RUN ln -s /platform-operator /manager
 ENTRYPOINT ["/platform-operator"]
