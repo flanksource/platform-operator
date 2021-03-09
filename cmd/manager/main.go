@@ -89,7 +89,7 @@ func main() {
 	flag.StringVar(&cfg.DefaultRegistryPrefix, "default-registry-prefix", "", "A default registry prefix path to apply to all pods")
 	flag.StringVar(&cfg.DefaultImagePullSecret, "default-image-pull-secret", "", "A default image pull secret to apply to all pods")
 	flag.StringVar(&registryWhitelist, "registry-whitelist", "", "A list of image prefixes to ignore")
-	flag.StringVar(&cfg.TolerationsPrefix, "namespace-tolerations-prefix", "tolerations/", "A prefix for namespace level annotations that should be applied as tolerations on pods")
+	flag.StringVar(&cfg.TolerationsAnnotation, "namespace-tolerations-annotation", "tolerations", "A namespace annotation that should be applied as tolerations on pods")
 	flag.Parse()
 
 	cfg.Annotations = strings.Split(annotations, ",")

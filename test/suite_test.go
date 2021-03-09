@@ -162,7 +162,7 @@ var _ = BeforeSuite(func(done Done) {
 		AnnotationsMap:         map[string]bool{"foo.example.com/bar": true},
 		RegistryWhitelist:      []string{"registry.cluster.local", "whitelist"},
 		DefaultRegistryPrefix:  "registry.cluster.local",
-		TolerationsPrefix:      "tolerations",
+		TolerationsAnnotation:  "tolerations",
 		DefaultImagePullSecret: "registry-secret",
 	}
 	err = pod.Add(k8sManager, 5*time.Second, podConfig)
