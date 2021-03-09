@@ -90,21 +90,18 @@ func (handler *podHandler) UpdatePod(namespace v1.Namespace, pod *v1.Pod) *v1.Po
 }
 
 func (handler *podHandler) UpdateTolerations(namespace v1.Namespace, pod *v1.Pod) *v1.Pod {
-	prefix := handler.PodMutaterConfig.TolerationsPrefix
-	if prefix == "" {
-		return pod
-	}
-
 	tolerations := pod.Spec.Tolerations
-	for k, v := range namespace.GetAnnotations() {
-		if !strings.HasPrefix(k, prefix) {
+	tolerationsValue := namespace.GetAnnotations()[handler.PodMutaterConfig.TolerationsAnnotation]
+	for _, toleration := range strings.Split(tolerationsValue, ";") {
+		if toleration == "" {
 			continue
 		}
-		key := strings.Replace(k, prefix+"/", "", 1)
-
-		handler.Log.Info("Adding toleration", "pod", pod.GetName(), key, v)
+		key := strings.Split(toleration, "=")[0]
+		value := strings.Split(toleration, "=")[1]
+		value = strings.Split(value, ":")[0]
+		handler.Log.Info("Adding toleration", "pod", pod.GetName(), key, value)
 		tolerations = append(tolerations, v1.Toleration{
-			Key: key, Value: v,
+			Key: key, Value: value,
 			Effect: v1.TaintEffectNoSchedule,
 		})
 	}

@@ -71,8 +71,8 @@ var _ = Describe("Pod Controller", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("ns-without-annotations-%s", utils.RandomString(3)),
 				Annotations: map[string]string{
-					"tolerations/node-group": "b",
-					"aaa.example.com/bbb":    "42",
+					"tolerations":         "node.kubernetes.io/group=instrumented:NoSchedule",
+					"aaa.example.com/bbb": "42",
 				},
 			},
 		}
@@ -118,8 +118,8 @@ var _ = Describe("Pod Controller", func() {
 			if len(pod.Spec.Tolerations) == 0 {
 				Fail("no toleration not found")
 			} else {
-				Expect(pod.Spec.Tolerations[0].Key).To(Equal("node-group"))
-				Expect(pod.Spec.Tolerations[0].Value).To(Equal("b"))
+				Expect(pod.Spec.Tolerations[0].Key).To(Equal("node.kubernetes.io/group"))
+				Expect(pod.Spec.Tolerations[0].Value).To(Equal("instrumented"))
 				Expect(pod.Spec.Tolerations[0].Effect).To(Equal(v1.TaintEffectNoSchedule))
 			}
 		})
