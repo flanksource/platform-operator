@@ -20,5 +20,5 @@ RUN make linux
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:latest
 WORKDIR /
-COPY --from=builder /workspace/platform-operator .
+COPY --from=builder /workspace/bin/platform-operator .
 ENTRYPOINT ["/platform-operator"]
