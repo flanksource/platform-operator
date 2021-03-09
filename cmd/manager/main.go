@@ -103,6 +103,7 @@ func main() {
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
 		LeaderElection:     enableLeaderElection,
+		LeaderElectionID:   "platform-operator",
 		Port:               9443,
 	})
 	if err != nil {
