@@ -86,7 +86,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request
 	for _, pod := range podsChanged {
 		if err := r.Client.Update(ctx, &pod); err != nil {
 			log.Error(err, "failed to update", "namespace", pod.Namespace, "pod", pod.Name)
-			return reconcile.Result{}, err
+			return reconcile.Result{Requeue: true}, err
 		} else {
 			log.Info("Updated", "namespace", pod.Namespace, "pod", pod.Name)
 		}
