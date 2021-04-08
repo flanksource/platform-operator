@@ -43,7 +43,7 @@ type ClusterResourceQuotaStatus struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,path=clusterresourcequotas
 
 // ClusterResourceQuota is the Schema for the clusterresourcequotas API
 type ClusterResourceQuota struct {

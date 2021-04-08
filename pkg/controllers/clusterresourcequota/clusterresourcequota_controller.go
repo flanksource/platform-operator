@@ -102,6 +102,7 @@ type ReconcileClusterResourceQuota struct {
 // +kubebuilder:rbac:groups=platform.flanksource.com,resources=clusterresourcequotas,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=platform.flanksource.com,resources=clusterresourcequotas/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
+
 func (r *ReconcileClusterResourceQuota) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	quota := &platformv1.ClusterResourceQuota{}
 	if err := r.Get(ctx, request.NamespacedName, quota); err != nil {

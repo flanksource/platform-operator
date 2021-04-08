@@ -4,7 +4,7 @@ set -ex
 
 export TEST_E2E=true
 
-k8s_version=1.11.0
+k8s_version=1.16.4
 # keeping older version around to reproduce any issue (just in case)
 #k8s_version=1.10.1
 goarch=amd64
