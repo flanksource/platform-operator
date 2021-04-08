@@ -92,6 +92,7 @@ func addIngressReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 }
 
 // +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=get;list;update;watch
+
 func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	ingress := &v1beta1.Ingress{}
 	if err := r.Get(ctx, request.NamespacedName, ingress); err != nil {
@@ -115,6 +116,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Req
 }
 
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
+
 func (r *IngressReconciler) Annotate(ctx context.Context, ingress *v1beta1.Ingress) (*v1beta1.Ingress, bool, error) {
 	groups, found := ingress.ObjectMeta.Annotations[groupsAnnotation]
 	if !found || groups == "" {
