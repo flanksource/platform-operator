@@ -66,6 +66,7 @@ generate: controller-gen
 	# Generate an all-in-one version including the operator manifests
 	kubectl kustomize config/operator/default > config/deploy/manifests.yaml
 	kubectl kustomize config/operator/base > config/deploy/base.yml
+	kubectl kustomize config/crds > config/deploy/crd.yml
 
 # Run go fmt against code
 fmt:
