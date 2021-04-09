@@ -1,0 +1,372 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: platform-system
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: platform-system/platform-serving-cert
+  creationTimestamp: null
+  name: platform-mutating-webhook-configuration
+  namespace: platform-system
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: platform-webhook-service
+      namespace: platform-system
+      path: /mutate-v1-ingress
+  failurePolicy: Ignore
+  name: annotate-ingress-v1.platform.flanksource.com
+  rules:
+  - apiGroups:
+    - extensions
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - ingresses
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: platform-webhook-service
+      namespace: platform-system
+      path: /mutate-v1-pod
+  failurePolicy: Ignore
+  name: annotate-pods-v1.platform.flanksource.com
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - pods
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: platform-system/platform-serving-cert
+  creationTimestamp: null
+  name: platform-validating-webhook-configuration
+  namespace: platform-system
+webhooks:
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: platform-webhook-service
+      namespace: platform-system
+      path: /validate-clusterresourcequota-platform-flanksource-com-v1
+  failurePolicy: Fail
+  name: clusterresourcequotas-validation-v1.platform.flanksource.com
+  rules:
+  - apiGroups:
+    - platform.flanksource.com
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusterresourcequotas
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: platform-webhook-service
+      namespace: platform-system
+      path: /validate-resourcequota-v1
+  failurePolicy: Fail
+  name: resourcequotas-validation-v1.platform.flanksource.com
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - resourcequotas
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-operator
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: platform-leader-election
+  namespace: platform-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-clusterresourcequota-editor
+rules:
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: platform-clusterresourcequota-viewer
+rules:
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: platform-manager
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - resourcequotas
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - platform.flanksource.com
+  resources:
+  - clusterresourcequotas/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: platform-leader-election
+  namespace: platform-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: platform-leader-election
+subjects:
+- kind: ServiceAccount
+  name: platform-operator
+  namespace: platform-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-manager
+subjects:
+- kind: ServiceAccount
+  name: platform-operator
+  namespace: platform-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-webhook-service
+  namespace: platform-system
+spec:
+  ports:
+  - port: 443
+    targetPort: 9443
+  selector:
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: controller-manager
+  name: platform-operator
+  namespace: platform-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --enable-leader-election
+        - --annotations=foo.flanksource.com/bar,foo.flanksource.com/baz
+        command:
+        - /manager
+        image: docker.io/flanksource/platform-operator:latest
+        imagePullPolicy: Always
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 100m
+            memory: 30Mi
+          requests:
+            cpu: 100m
+            memory: 20Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      serviceAccountName: platform-operator
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: platform-serving-cert
+  namespace: platform-system
+spec:
+  dnsNames:
+  - platform-webhook-service.platform-system.svc
+  - platform-webhook-service.platform-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: platform-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: platform-selfsigned-issuer
+  namespace: platform-system
+spec:
+  selfSigned: {}

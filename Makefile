@@ -65,6 +65,7 @@ generate: controller-gen
 	# set image name and tag
 	# Generate an all-in-one version including the operator manifests
 	kubectl kustomize config/operator/default > config/deploy/manifests.yaml
+	kubectl kustomize config/operator/base > config/deploy/base.yml
 
 # Run go fmt against code
 fmt:

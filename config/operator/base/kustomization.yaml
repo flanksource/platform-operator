@@ -13,7 +13,6 @@ namePrefix: platform-
 #  someName: someValue
 
 bases:
-  - ../../crds
   - ../rbac
   - ../manager
   - ../webhook
