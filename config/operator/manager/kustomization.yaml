@@ -7,3 +7,6 @@ images:
 - name: controller
   newName: controller
   newTag: latest
+
+patchesStrategicMerge:
+  - ./manager_webhook_patch.yaml
