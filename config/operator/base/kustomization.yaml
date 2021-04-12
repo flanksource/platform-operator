@@ -15,4 +15,3 @@ namePrefix: platform-
 bases:
   - ../rbac
   - ../manager
-  - ../webhook
