@@ -2,8 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   labels:
-    control-plane: controller-manager
-  name: platform-system
+    control-plane: platform-operator
+  name: platform-platform-system
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -200,7 +200,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: platform-webhook-service
+      name: platform-operator
       namespace: platform-system
       path: /mutate-v1-ingress
   failurePolicy: Ignore
@@ -218,7 +218,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: platform-webhook-service
+      name: platform-operator
       namespace: platform-system
       path: /mutate-v1-pod
   failurePolicy: Ignore
@@ -246,7 +246,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: platform-webhook-service
+      name: platform-operator
       namespace: platform-system
       path: /validate-clusterresourcequota-platform-flanksource-com-v1
   failurePolicy: Fail
@@ -264,7 +264,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: platform-webhook-service
+      name: platform-operator
       namespace: platform-system
       path: /validate-resourcequota-v1
   failurePolicy: Fail
@@ -474,31 +474,31 @@ subjects:
 apiVersion: v1
 kind: Service
 metadata:
-  name: platform-webhook-service
+  name: platform-operator
   namespace: platform-system
 spec:
   ports:
   - port: 443
     targetPort: 9443
   selector:
-    control-plane: controller-manager
+    control-plane: platform-operator
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    control-plane: controller-manager
+    control-plane: platform-operator
   name: platform-operator
   namespace: platform-system
 spec:
   replicas: 1
   selector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: platform-operator
   template:
     metadata:
       labels:
-        control-plane: controller-manager
+        control-plane: platform-operator
     spec:
       containers:
       - args:
@@ -530,7 +530,7 @@ spec:
       - name: cert
         secret:
           defaultMode: 420
-          secretName: webhook-server-cert
+          secretName: platform-operator
 ---
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
@@ -539,12 +539,12 @@ metadata:
   namespace: platform-system
 spec:
   dnsNames:
-  - platform-webhook-service.platform-system.svc
-  - platform-webhook-service.platform-system.svc.cluster.local
+  - platform-operator.platform-system.svc
+  - platform-operator.platform-system.svc.cluster.local
   issuerRef:
     kind: Issuer
     name: platform-selfsigned-issuer
-  secretName: webhook-server-cert
+  secretName: platform-operator
 ---
 apiVersion: cert-manager.io/v1alpha2
 kind: Issuer

@@ -9,7 +9,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: webhook-service
+      name: operator
       namespace: system
       path: /mutate-v1-ingress
   failurePolicy: Ignore
@@ -27,7 +27,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: webhook-service
+      name: operator
       namespace: system
       path: /mutate-v1-pod
   failurePolicy: Ignore
@@ -53,7 +53,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: webhook-service
+      name: operator
       namespace: system
       path: /validate-clusterresourcequota-platform-flanksource-com-v1
   failurePolicy: Fail
@@ -71,7 +71,7 @@ webhooks:
 - clientConfig:
     caBundle: Cg==
     service:
-      name: webhook-service
+      name: operator
       namespace: system
       path: /validate-resourcequota-v1
   failurePolicy: Fail
