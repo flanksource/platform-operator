@@ -25,21 +25,18 @@ import (
 
 // ClusterResourceQuotaSpec defines the desired state of ClusterResourceQuota
 type ClusterResourceQuotaSpec struct {
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Quota sets aggregate quota restrictions enforced across all namespaces
-	Quota corev1.ResourceQuotaSpec `json:"quota,omitempty"`
+	MatchLabels              map[string]string `json:"matchLabels"`
+	corev1.ResourceQuotaSpec `json:",inline"`
 }
 
 // ClusterResourceQuotaStatus defines the observed state of ClusterResourceQuota
 type ClusterResourceQuotaStatus struct {
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// Total defines the actual enforced quota and its current usage across all namespaces
 	Total corev1.ResourceQuotaStatus `json:"total,omitempty"`
 
 	// Slices the quota used per namespace
-	Namespaces ResourceQuotasStatusByNamespace `json:"namespaces"`
+	Namespaces ResourceQuotasStatusByNamespace `json:"namespaces,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -61,7 +61,7 @@ func TestReconcileClusterResourceQuota_doReconcile(t *testing.T) {
 					Name: "clusterresourcequota-sample",
 				},
 				Spec: platformv1.ClusterResourceQuotaSpec{
-					Quota: corev1.ResourceQuotaSpec{
+					ResourceQuotaSpec: corev1.ResourceQuotaSpec{
 						Hard: corev1.ResourceList{
 							corev1.ResourcePods: resource.MustParse("10"),
 						},

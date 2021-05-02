@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -79,7 +80,7 @@ func waitFor(host string) {
 	}, 60*time.Second, 1*time.Second).Should(Succeed())
 }
 
-func registerWebhook(manager ctrl.Manager, name string, webhook *admission.Webhook) error {
+func registerWebhook(manager ctrl.Manager, name string, webhook *admission.Webhook, apiGroup, apiVersion string, resources ...string) error {
 	wh := &admissionregistrationv1beta1.MutatingWebhookConfiguration{}
 	wh.Name = name
 	_, err := ctrl.CreateOrUpdate(context.TODO(), manager.GetClient(), wh, func() error {
@@ -100,9 +101,9 @@ func registerWebhook(manager ctrl.Manager, name string, webhook *admission.Webho
 							admissionregistrationv1beta1.Create, admissionregistrationv1beta1.Update,
 						},
 						Rule: admissionregistrationv1beta1.Rule{
-							APIGroups:   []string{""},
-							APIVersions: []string{"v1"},
-							Resources:   []string{"pods"},
+							APIGroups:   []string{apiGroup},
+							APIVersions: []string{apiVersion},
+							Resources:   resources,
 						},
 					},
 				},
@@ -179,7 +180,19 @@ var _ = BeforeSuite(func(done Done) {
 	}()
 	By("Waiting for webhook server to come up")
 	waitFor(fmt.Sprintf("localhost:%d", port))
-	err = registerWebhook(k8sManager, "annotate-pods-v1.platform.flanksource.com", &webhook.Admission{Handler: pod.NewMutatingWebhook(k8sManager.GetClient(), podConfig)})
+	err = registerWebhook(k8sManager, "annotate-pods-v1.platform.flanksource.com",
+		&webhook.Admission{Handler: pod.NewMutatingWebhook(k8sManager.GetClient(), podConfig)},
+		"", "v1", "pods")
+	Expect(err).ToNot(HaveOccurred())
+
+	err = registerWebhook(k8sManager, "clusterresourcequota-v1.platform.flanksource.com",
+		&webhook.Admission{Handler: clusterresourcequota.NewClusterResourceQuotaValidatingWebhook(k8sManager.GetClient(), &sync.Mutex{}, true)},
+		"platform.flanksource.com", "v1", "clusterresourcequotas")
+	Expect(err).ToNot(HaveOccurred())
+
+	err = registerWebhook(k8sManager, "resourcequota-v1.platform.flanksource.com",
+		&webhook.Admission{Handler: clusterresourcequota.NewResourceQuotaValidatingWebhook(k8sManager.GetClient(), &sync.Mutex{}, true)},
+		"", "v1", "resourcequotas")
 	Expect(err).ToNot(HaveOccurred())
 	By("Webhook server is up")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})

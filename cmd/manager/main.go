@@ -127,7 +127,7 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "ClusterResourceQuota")
 			os.Exit(1)
 		}
-		hookServer.Register("/validate-clusterresourcequota-platform-flanksource-com-v1", clusterresourcequota.NewClusterResourceQuotaValidatingWebhook(mgr.GetClient(), mtx, enableClusterResourceQuota))
+		hookServer.Register("/validate-clusterresourcequota-v1", clusterresourcequota.NewClusterResourceQuotaValidatingWebhook(mgr.GetClient(), mtx, enableClusterResourceQuota))
 		hookServer.Register("/validate-resourcequota-v1", clusterresourcequota.NewResourceQuotaValidatingWebhook(mgr.GetClient(), mtx, enableClusterResourceQuota))
 
 	}

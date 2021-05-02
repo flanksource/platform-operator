@@ -18,6 +18,10 @@ package clusterresourcequota
 
 import (
 	"context"
+	"math/rand"
+	"strings"
+	"sync"
+	"time"
 
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 
@@ -25,7 +29,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilquota "k8s.io/apiserver/pkg/quota/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -47,6 +50,7 @@ func Add(mgr manager.Manager) error {
 
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
 	return &ReconcileClusterResourceQuota{
+		mtx:    &sync.Mutex{},
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}
@@ -95,6 +99,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 var _ reconcile.Reconciler = &ReconcileClusterResourceQuota{}
 
 type ReconcileClusterResourceQuota struct {
+	mtx *sync.Mutex
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -104,81 +109,42 @@ type ReconcileClusterResourceQuota struct {
 // +kubebuilder:rbac:groups="",resources=resourcequotas,verbs=get;list;watch
 
 func (r *ReconcileClusterResourceQuota) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	quota := &platformv1.ClusterResourceQuota{}
 	if err := r.Get(ctx, request.NamespacedName, quota); err != nil {
 		if apierrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
 		}
-
-		log.Error(err, "Failed to get Cluster Resource Quota")
 		return reconcile.Result{}, err
 	}
 
-	namespacesList := &corev1.NamespaceList{}
-	if err := r.List(ctx, namespacesList); err != nil {
-		log.Error(err, "Failed to list namespaces")
+	existing, err := findMatchingResourceQuotas(ctx, r.Client, quota, nil)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	for _, namespace := range namespacesList.Items {
-		namespaceName := namespace.Name
+	quota.Status.Total.Hard = sumOfHard(existing)
+	quota.Status.Total.Used = sumOfUsed(existing)
+	quota.Status.Namespaces = platformv1.ResourceQuotasStatusByNamespace{}
+	sum, keys := sumByNamespace(existing)
 
-		// get the quotas per namespace in the status of the ClusterQuotaResource
-		// this represent the past - here below we need to compute the future
-		namespaceTotals := GetResourceQuotasStatusByNamespace(quota.Status.Namespaces, namespaceName)
-
-		rqList := &corev1.ResourceQuotaList{}
-		if err := r.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
-			log.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
-			return reconcile.Result{}, err
-		}
-
-		if len(rqList.Items) == 0 {
-			log.Info("Warning: no ResourceQuota defined", "namespace", namespaceName)
-			continue
-		}
-
-		// calculate the quotas on a single namespace
-		var recalculatedStatus corev1.ResourceQuotaStatus = corev1.ResourceQuotaStatus{}
-		for _, rq := range rqList.Items {
-			// calculate the status across all the Resource Quota in a namespace
-			usedCurrent := utilquota.Add(recalculatedStatus.Used, rq.Status.Used)
-			hardCurrent := utilquota.Add(recalculatedStatus.Hard, rq.Status.Hard)
-
-			recalculatedStatus = corev1.ResourceQuotaStatus{
-				Used: usedCurrent,
-				Hard: hardCurrent,
-			}
-		}
-
-		// subtract old usage, add new usage
-		quota.Status.Total.Used = utilquota.Subtract(quota.Status.Total.Used, namespaceTotals.Used)
-		quota.Status.Total.Used = utilquota.Add(quota.Status.Total.Used, recalculatedStatus.Used)
-		InsertResourceQuotasStatus(&quota.Status.Namespaces, platformv1.ResourceQuotaStatusByNamespace{
-			Namespace: namespaceName,
-			Status:    recalculatedStatus,
+	for _, namespace := range keys {
+		quota.Status.Namespaces = append(quota.Status.Namespaces, platformv1.ResourceQuotaStatusByNamespace{
+			Namespace: namespace,
+			Status:    sum[namespace].Status,
 		})
 	}
 
-	statusCopy := quota.Status.Namespaces.DeepCopy()
-	for _, namespaceTotals := range statusCopy {
-		namespaceName := namespaceTotals.Namespace
-
-		rqList := &corev1.ResourceQuotaList{}
-		if err := r.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
-			log.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
-			return reconcile.Result{}, err
+	if err := r.Client.Status().Update(ctx, quota); err != nil {
+		if strings.Contains(err.Error(), "the object has been modified; please apply your changes to the latest version and try again") {
+			log.Info("Concurrent update detected, retrying")
+			return reconcile.Result{RequeueAfter: time.Second * time.Duration(1+rand.Intn(4))}, nil
 		}
-
-		if len(rqList.Items) == 0 {
-			quota.Status.Total.Used = utilquota.Subtract(quota.Status.Total.Used, namespaceTotals.Status.Used)
-			RemoveResourceQuotasStatusByNamespace(&quota.Status.Namespaces, namespaceName)
+		if apierrors.IsNotFound(err) {
+			return reconcile.Result{}, nil
 		}
-	}
-
-	quota.Status.Total.Hard = quota.Spec.Quota.Hard
-	if err := r.Client.Update(ctx, quota); err != nil {
-		log.Error(err, "Failed to update status")
 		return reconcile.Result{}, err
 	}
 

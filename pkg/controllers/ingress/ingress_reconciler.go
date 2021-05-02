@@ -91,7 +91,7 @@ func addIngressReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 	return nil
 }
 
-// +kubebuilder:rbac:groups="extensions",resources=ingresses,verbs=get;list;update;watch
+// +kubebuilder:rbac:groups=extensions;networking.k8s.io,resources=ingresses,verbs=get;list;update;watch
 
 func (r *IngressReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	ingress := &v1beta1.Ingress{}
