@@ -20,16 +20,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
-	corev1 "k8s.io/api/core/v1"
-	utilquota "k8s.io/apiserver/pkg/quota/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
-
-// +kubebuilder:webhook:path=/validate-clusterresourcequota-platform-flanksource-com-v1,mutating=false,failurePolicy=fail,groups=platform.flanksource.com,resources=clusterresourcequotas,verbs=create;update,versions=v1,name=clusterresourcequotas-validation-v1.platform.flanksource.com
 
 func NewClusterResourceQuotaValidatingWebhook(client client.Client, mtx *sync.Mutex, validationEnabled bool) *admission.Webhook {
 	decoder, _ := admission.NewDecoder(client.Scheme())
@@ -56,9 +53,9 @@ func (v *validatingClusterResourceQuotaHandler) Handle(ctx context.Context, req 
 	v.mtx.Lock()
 	defer v.mtx.Unlock()
 
-	quota := &platformv1.ClusterResourceQuota{}
+	crq := &platformv1.ClusterResourceQuota{}
 
-	if err := v.Decode(req, quota); err != nil {
+	if err := v.Decode(req, crq); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -67,35 +64,19 @@ func (v *validatingClusterResourceQuotaHandler) Handle(ctx context.Context, req 
 		return admission.Allowed("")
 	}
 
-	namespacesList := &corev1.NamespaceList{}
-	if err := v.List(ctx, namespacesList); err != nil {
-		log.Error(err, "Failed to list namespaces")
+	existing, err := findMatchingResourceQuotas(ctx, v.Client, crq, nil)
+	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	// store here the total hard of all resource quotas
-	hardTotals := corev1.ResourceList{}
-	for _, namespace := range namespacesList.Items {
-		namespaceName := namespace.Name
+	used := sumOfHard(existing)
 
-		rqList := &corev1.ResourceQuotaList{}
-		if err := v.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
-			log.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
-			return admission.Errored(http.StatusBadRequest, err)
+	if isOk, rn := greaterThan(used, crq.Spec.Hard); !isOk {
+		msg := ""
+		for _, resource := range rn {
+			msg += fmt.Sprintf(" %s(%s > %s)", resource, qtyString(used[resource]), qtyString(crq.Spec.Hard[resource]))
 		}
-
-		if len(rqList.Items) == 0 {
-			continue
-		}
-
-		for _, rq := range rqList.Items {
-			hardTotals = utilquota.Add(hardTotals, rq.Status.Hard)
-		}
-	}
-
-	// check quota
-	if isOk, rn := utilquota.LessThanOrEqual(hardTotals, quota.Spec.Quota.Hard); !isOk {
-		return admission.Denied(fmt.Sprintf("total resource quotas exceeed cluster resource quota hard limits %v", rn))
+		return admission.Denied(fmt.Sprintf("cannot update ClusterResourceQuota/%s it would be below current usage: %s", crq.Name, strings.TrimSpace(msg)))
 	}
 
 	return admission.Allowed("")

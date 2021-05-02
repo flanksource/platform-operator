@@ -15,99 +15,124 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var matchBy = map[string]string{"name": "n1"}
+
+func newClusterResourceQuota() *platformv1.ClusterResourceQuota {
+	return &platformv1.ClusterResourceQuota{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "platform.flanksource.com/v1", Kind: "ClusterResourceQuota"},
+		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("crq-%s", utils.RandomString(3))},
+		Status: platformv1.ClusterResourceQuotaStatus{
+			Namespaces: platformv1.ResourceQuotasStatusByNamespace{},
+		},
+		Spec: platformv1.ClusterResourceQuotaSpec{
+			MatchLabels: matchBy,
+			ResourceQuotaSpec: v1.ResourceQuotaSpec{
+				Hard: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("2"),
+					v1.ResourceMemory: resource.MustParse("2Gi"),
+				},
+			},
+		},
+	}
+}
+
 var _ = Describe("ClusterResourceQuota Controller", func() {
 
+	var ctx = context.Background()
 	const timeout = time.Second * 30
 	const interval = time.Second * 1
+	n1 := v1.Namespace{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("ns-with-clusterquota-%s", utils.RandomString(3)), Labels: matchBy},
+	}
 
-	var clusterResourceQuota *platformv1.ClusterResourceQuota
-	var resourceQuotas = []v1.ResourceQuota{}
-	var namespaces = []v1.Namespace{}
+	n2 := v1.Namespace{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
+		ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("ns-with-clusterquota-%s", utils.RandomString(3)), Labels: matchBy},
+	}
 
-	AfterEach(func() {
-		if clusterResourceQuota != nil {
-			_ = k8sClient.Delete(context.Background(), clusterResourceQuota)
+	var crq *platformv1.ClusterResourceQuota
+
+	CreateQuota := func(namespace, cpu, memory string) (v1.ResourceQuota, error) {
+		r := v1.ResourceQuota{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ResourceQuota"},
+			ObjectMeta: metav1.ObjectMeta{Name: "rq", Namespace: namespace},
+			Spec: v1.ResourceQuotaSpec{
+				Hard: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse(cpu),
+					v1.ResourceMemory: resource.MustParse(memory),
+				},
+			},
 		}
-		for _, r := range resourceQuotas {
-			_ = k8sClient.Delete(context.Background(), &r)
-		}
-		for _, n := range namespaces {
-			_ = k8sClient.Delete(context.Background(), &n)
-		}
-	})
+		err := k8sClient.Create(ctx, &r)
+		return r, err
+	}
 
-	XContext("ClusterResourceQuota exists", func() {
-		It("allows ResourceQuota creation within limits", func() {
-			n1 := v1.Namespace{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
-				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("ns-with-annotations-%s", utils.RandomString(3))},
-			}
-			n2 := v1.Namespace{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "Namespace"},
-				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("ns-with-annotations-%s", utils.RandomString(3))},
-			}
-			namespaces = append(namespaces, n1, n2)
-			err := k8sClient.Create(context.Background(), &n1)
-			Expect(err).ToNot(HaveOccurred())
-			err = k8sClient.Create(context.Background(), &n2)
-			Expect(err).ToNot(HaveOccurred())
+	Describe("ClusterResourceQuota", func() {
 
-			crq := platformv1.ClusterResourceQuota{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "platform.flanksource.com/v1", Kind: "ClusterResourceQuota"},
-				ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("crq-%s", utils.RandomString(3))},
-				Status: platformv1.ClusterResourceQuotaStatus{
-					Namespaces: platformv1.ResourceQuotasStatusByNamespace{},
-				},
-				Spec: platformv1.ClusterResourceQuotaSpec{
-					Quota: v1.ResourceQuotaSpec{
-						Hard: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse("2"),
-							v1.ResourceMemory: resource.MustParse("1Gi"),
-						},
-					},
-				},
-			}
-			err = k8sClient.Create(context.Background(), &crq)
+		It("setup", func() {
+			err := k8sClient.Create(ctx, &n1)
 			Expect(err).ToNot(HaveOccurred())
-
-			r1 := v1.ResourceQuota{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ResourceQuota"},
-				ObjectMeta: metav1.ObjectMeta{Name: "rq", Namespace: n1.Name},
-				Spec: v1.ResourceQuotaSpec{
-					Hard: v1.ResourceList{
-						v1.ResourceCPU:    resource.MustParse("3"),
-						v1.ResourceMemory: resource.MustParse("1500Mi"),
-					},
-				},
-			}
-			err = k8sClient.Create(context.Background(), &r1)
+			err = k8sClient.Create(ctx, &n2)
 			Expect(err).ToNot(HaveOccurred())
-
-			r2 := v1.ResourceQuota{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ResourceQuota"},
-				ObjectMeta: metav1.ObjectMeta{Name: "rq", Namespace: n2.Name},
-				Spec: v1.ResourceQuotaSpec{
-					Hard: v1.ResourceList{
-						v1.ResourceCPU:    resource.MustParse("1"),
-						v1.ResourceMemory: resource.MustParse("600Mi"),
-					},
-				},
-			}
-			err = k8sClient.Create(context.Background(), &r2)
-			Expect(err).To(HaveOccurred())
 		})
-	})
 
-	Context("ClusterResourceQuota exists", func() {
-		It("allows ResourceQuota creation within limits", func() {
-			rq := v1.ResourceQuotaList{}
-			err := k8sClient.List(context.Background(), &rq)
+		BeforeEach(func() {
+			crq = newClusterResourceQuota()
+			err := k8sClient.Create(ctx, crq)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := k8sClient.Delete(ctx, crq)
+			Expect(err).ToNot(HaveOccurred())
+			rqList := v1.ResourceQuotaList{}
+			err = k8sClient.List(ctx, &rqList)
 			Expect(err).ToNot(HaveOccurred())
 
-			// create two resource quotas
-			// check if cluster resource quota can be created only withing limits
-			// TODO: currently we can't delete resource quotas created by previous tests
-			// Using testEnv resources cannot be properly deleted unfortunately
+			for _, rq := range rqList.Items {
+				err = k8sClient.Delete(ctx, &rq)
+				Expect(err).ToNot(HaveOccurred())
+			}
+		})
+
+		It("allows ResourceQuota creation within limits", func() {
+			_, err := CreateQuota(n1.Name, "900m", "500Mi")
+			Expect(err).ToNot(HaveOccurred())
+			_, err = CreateQuota(n2.Name, "1000m", "1Gi")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		//TODO: test CRQ status
+
+		It("should not allow updating to lower than ResourceQuota", func() {
+			_, err := CreateQuota(n1.Name, "1100m", "1Gi")
+			Expect(err).ToNot(HaveOccurred())
+			crq.Spec.Hard = v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("500m"),
+				v1.ResourceMemory: resource.MustParse("2Gi"),
+			}
+			err = k8sClient.Update(ctx, crq)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("cpu(1100m > 500m)"))
+		})
+
+		It("should allow updating to higher than ResourceQuota", func() {
+			_, err := CreateQuota(n1.Name, "1000m", "1Gi")
+			Expect(err).ToNot(HaveOccurred())
+			crq.Spec.Hard = v1.ResourceList{
+				v1.ResourceCPU:    resource.MustParse("1500m"),
+				v1.ResourceMemory: resource.MustParse("2Gi"),
+			}
+			err = k8sClient.Update(ctx, crq)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not allow ResourceQuota creation outside of limits", func() {
+			_, err := CreateQuota(n1.Name, "1000m", "1Gi")
+			Expect(err).ToNot(HaveOccurred())
+			_, err = CreateQuota(n2.Name, "1500m", "1Gi")
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

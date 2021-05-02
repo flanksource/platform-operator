@@ -30,7 +30,7 @@ func NewMutatingWebhook(client client.Client, svcName, svcNamespace, domain stri
 	}
 }
 
-// +kubebuilder:webhook:path=/mutate-v1-ingress,mutating=true,failurePolicy=ignore,groups="extensions",resources=ingresses,verbs=create;update,versions=v1beta1,name=annotate-ingress-v1.platform.flanksource.com
+// +kubebuilder:webhook:path=/mutate-v1-ingress,mutating=true,sideEffects=None,admissionReviewVersions=v1,failurePolicy=ignore,groups="extensions",resources=ingresses,verbs=create;update,versions=v1beta1,name=mutate-ingress-v1.platform.flanksource.com
 func (handler *ingressHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	ingress := &v1beta1.Ingress{}
 

@@ -25,6 +25,7 @@ type podHandler struct {
 	platformv1.PodMutaterConfig
 }
 
+//+kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,sideEffects=None,admissionReviewVersions=v1,failurePolicy=ignore,groups="",resources=pods,verbs=create;update,versions=v1,name=mutate-pods-v1.platform.flanksource.com
 func NewMutatingWebhook(client client.Client, cfg platformv1.PodMutaterConfig) *admission.Webhook {
 	cfg.AnnotationsMap = make(map[string]bool)
 	for _, a := range cfg.Annotations {
@@ -40,7 +41,6 @@ func NewMutatingWebhook(client client.Client, cfg platformv1.PodMutaterConfig) *
 	}
 }
 
-// +kubebuilder:webhook:path=/mutate-v1-pod,mutating=true,failurePolicy=ignore,groups="",resources=pods,verbs=create;update,versions=v1,name=annotate-pods-v1.platform.flanksource.com
 func (handler *podHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	pod := &corev1.Pod{}
 	err := handler.Decode(req, pod)

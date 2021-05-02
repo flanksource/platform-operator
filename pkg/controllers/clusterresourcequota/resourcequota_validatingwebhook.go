@@ -20,17 +20,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
-	platformv1 "github.com/flanksource/platform-operator/pkg/apis/platform/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	utilquota "k8s.io/apiserver/pkg/quota/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// +kubebuilder:webhook:path=/validate-resourcequota-v1,mutating=false,failurePolicy=fail,groups="",resources=resourcequotas,verbs=create;update,versions=v1,name=resourcequotas-validation-v1.platform.flanksource.com
+// +kubebuilder:webhook:path=/validate-resourcequota-v1,mutating=false,sideEffects=None,admissionReviewVersions=v1,failurePolicy=fail,groups="",resources=resourcequotas,verbs=create;update,versions=v1,name=resourcequotas-validation-v1.platform.flanksource.com
 func NewResourceQuotaValidatingWebhook(client client.Client, mtx *sync.Mutex, validationEnabled bool) *admission.Webhook {
 	decoder, _ := admission.NewDecoder(client.Scheme())
 	return &admission.Webhook{
@@ -61,56 +62,37 @@ func (v *validatingResourceQuotaHandler) Handle(ctx context.Context, req admissi
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	var namespace v1.Namespace
+	if err := v.Client.Get(ctx, namespaceKey(rq), &namespace); err != nil {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("cannot find namespace for resource quota: %s", rq.Namespace))
+	}
+
+	crq, err := findClusterResourceQuota(ctx, v.Client, namespace)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+	if crq == nil {
+		return admission.Allowed("")
+	}
+
 	if !v.validationEnabled {
 		log.Info("validate resource quota flag is not enabled. All requests will be declared valid")
 		return admission.Allowed("")
 	}
 
-	namespacesList := &corev1.NamespaceList{}
-	if err := v.List(ctx, namespacesList); err != nil {
-		log.Error(err, "Failed to list namespaces")
+	existing, err := findMatchingResourceQuotas(ctx, v.Client, crq, rq)
+	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	// store here the total hard of all resource quotas
-	hardTotals := corev1.ResourceList{}
-	for _, namespace := range namespacesList.Items {
-		namespaceName := namespace.Name
+	sum := sumOfHard(append(existing, *rq))
 
-		rqList := &corev1.ResourceQuotaList{}
-		if err := v.List(ctx, rqList, client.InNamespace(namespaceName)); err != nil {
-			log.Error(err, "Failed to list Resource Quota", "namespace", namespaceName)
-			return admission.Errored(http.StatusBadRequest, err)
+	if isOk, rn := utilquota.LessThanOrEqual(sum, crq.Spec.Hard); !isOk {
+		msg := ""
+		for _, resource := range rn {
+			msg += fmt.Sprintf(" %s(%s > %s)", resource, qtyString(sum[resource]), qtyString(crq.Spec.Hard[resource]))
 		}
-
-		if len(rqList.Items) == 0 {
-			continue
-		}
-
-		for _, rq := range rqList.Items {
-			hardTotals = utilquota.Add(hardTotals, rq.Status.Hard)
-		}
-	}
-
-	hardTotals = utilquota.Add(hardTotals, rq.Spec.Hard)
-
-	// in case in the cluster we define multiple resource quotas
-	// NOTE: in the future we could have cluster resource quotas applied to
-	//       some namespaces
-	quotaList := &platformv1.ClusterResourceQuotaList{}
-	if err := v.List(ctx, quotaList); err != nil {
-		log.Error(err, "Failed to list cluster resource quotas")
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	if len(quotaList.Items) == 0 {
-		admission.Allowed("")
-	}
-
-	for _, q := range quotaList.Items {
-		if isOk, rn := utilquota.LessThanOrEqual(hardTotals, q.Spec.Quota.Hard); !isOk {
-			return admission.Denied(fmt.Sprintf("resource quota exceeds the cluster resource quota %s in %v", q.Name, rn))
-		}
+		return admission.Denied(fmt.Sprintf("ResourceQuota/%s/%s would exceed ClusterResourceQuota/%s: %s", rq.Namespace, rq.Name, crq.Name, strings.TrimSpace(msg)))
 	}
 	return admission.Allowed("")
 }

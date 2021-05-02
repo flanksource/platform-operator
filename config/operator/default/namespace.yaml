@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   labels:
     control-plane: platform-operator
-  name: platform-system
+  name: system
