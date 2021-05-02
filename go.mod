@@ -24,7 +24,7 @@ require (
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/klog v1.0.0
 	k8s.io/utils v0.0.0-20210111153108-fddb29f9d009
-	sigs.k8s.io/controller-runtime v0.8.2
+	sigs.k8s.io/controller-runtime v0.8.3
 	sigs.k8s.io/controller-tools v0.5.0
 	sigs.k8s.io/yaml v1.2.0
 )
@@ -36,7 +36,7 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.20.4
 	k8s.io/apiserver => k8s.io/apiserver v0.20.4
 	k8s.io/client-go => k8s.io/client-go v0.20.4
-	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.8.2
+	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.8.3
 	launchpad.net/gocheck => github.com/go-check/check v0.0.0-20180628173108-788fd7840127
 	vbom.ml/util => github.com/fvbommel/util v0.0.0-20180919145318-efcd4e0f9787
 )

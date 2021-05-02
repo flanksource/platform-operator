@@ -1,88 +1,98 @@
-
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   creationTimestamp: null
   name: mutating-webhook-configuration
 webhooks:
-- clientConfig:
-    caBundle: Cg==
-    service:
-      name: operator
-      namespace: system
-      path: /mutate-v1-ingress
-  failurePolicy: Ignore
-  name: annotate-ingress-v1.platform.flanksource.com
-  rules:
-  - apiGroups:
-    - extensions
-    apiVersions:
-    - v1beta1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - ingresses
-- clientConfig:
-    caBundle: Cg==
-    service:
-      name: operator
-      namespace: system
-      path: /mutate-v1-pod
-  failurePolicy: Ignore
-  name: annotate-pods-v1.platform.flanksource.com
-  rules:
-  - apiGroups:
-    - ""
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - pods
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: webhook-service
+        namespace: system
+        path: /mutate-v1-pod
+    failurePolicy: Ignore
+    name: mutate-v1-pod.platform.flanksource.com
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+    sideEffects: None
+
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: webhook-service
+        namespace: system
+        path: /mutate-v1-ingress
+    failurePolicy: Ignore
+    name: mutate-v1-pod.platform.flanksource.com
+    rules:
+      - apiGroups:
+          - extensions
+          - networking.k8s.io
+        apiVersions:
+          - v1beta1
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - ingresses
+    sideEffects: None
 
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   creationTimestamp: null
   name: validating-webhook-configuration
 webhooks:
-- clientConfig:
-    caBundle: Cg==
-    service:
-      name: operator
-      namespace: system
-      path: /validate-clusterresourcequota-platform-flanksource-com-v1
-  failurePolicy: Fail
-  name: clusterresourcequotas-validation-v1.platform.flanksource.com
-  rules:
-  - apiGroups:
-    - platform.flanksource.com
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - clusterresourcequotas
-- clientConfig:
-    caBundle: Cg==
-    service:
-      name: operator
-      namespace: system
-      path: /validate-resourcequota-v1
-  failurePolicy: Fail
-  name: resourcequotas-validation-v1.platform.flanksource.com
-  rules:
-  - apiGroups:
-    - ""
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-    resources:
-    - resourcequotas
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: webhook-service
+        namespace: system
+        path: /validate-clusterresourcequota-platform-flanksource-com-v1
+    failurePolicy: Fail
+    name: clusterresourcequotas-validation-v1.platform.flanksource.com
+    rules:
+      - apiGroups:
+          - platform.flanksource.com
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - clusterresourcequotas
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: webhook-service
+        namespace: system
+        path: /validate-resourcequota-platform-flanksource-com-v1
+    failurePolicy: Fail
+    name: resourcequotas-validation-v1.platform.flanksource.com
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - resourcequotas
+    sideEffects: None
