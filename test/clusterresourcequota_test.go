@@ -103,8 +103,7 @@ var _ = Describe("ClusterResourceQuota Controller", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		XIt("should update its status", func() {
-		})
+		//TODO: test CRQ status
 
 		It("should not allow updating to lower than ResourceQuota", func() {
 			_, err := CreateQuota(n1.Name, "1100m", "1Gi")
