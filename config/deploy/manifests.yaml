@@ -9,7 +9,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    cert-manager.io/inject-ca-from: platform-system/platform-serving-cert
     controller-gen.kubebuilder.io/version: v0.5.0
   creationTimestamp: null
   name: clusterresourcequotas.platform.flanksource.com
@@ -189,7 +189,7 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    cert-manager.io/inject-ca-from: platform-system/platform-serving-cert
   creationTimestamp: null
   name: platform-mutating-webhook-configuration
   namespace: platform-system
@@ -241,7 +241,7 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
-    cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
+    cert-manager.io/inject-ca-from: platform-system/platform-serving-cert
   creationTimestamp: null
   name: platform-validating-webhook-configuration
   namespace: platform-system
@@ -397,6 +397,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - ""
   resources:

@@ -62,7 +62,7 @@ func addPodReconciler(mgr manager.Manager, r reconcile.Reconciler) error {
 }
 
 // +kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;create;update
-// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;update;watch
 
 func (r *PodReconciler) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
