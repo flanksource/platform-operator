@@ -18,7 +18,7 @@ RUN make linux
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-FROM ubuntu:20.04
+FROM ubuntu:groovy-20210416
 WORKDIR /
 COPY --from=builder /workspace/bin/platform-operator /platform-operator
 RUN ln -s /platform-operator /manager
